@@ -1,6 +1,6 @@
 import { join } from 'path';
-import updateFileContent from "../src/index.mjs";
-import { processFiles } from "./helpers/process-files.mjs"
+import { updateFileContent } from "../src/index.mjs";
+import { processFiles } from "./helpers/process-files.mjs";
 import { __dirname, root_directory } from "./helpers/__dirname.mjs";
 
 const mode = ["network-first", "offline-first"][1];

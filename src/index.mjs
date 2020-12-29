@@ -1,40 +1,84 @@
-import rw_stream from "./rw-stream.mjs";
+import { process_stream, rw_stream } from "./process.mjs";
+import { PassThrough } from "stream";
 
-/**
- * Replace the 1st parenthesized substring match with data.replace.
- * Can handle large files well with the magic of rw_stream.
- * @param {Object} data 
- */
-async function updateFileContent(data) {
-  /**
-   * Set the global flag to ensure the search pattern is "stateful",
-   * while preserving flags the original search pattern.
-   */
-  let flags = data.search.flags;
+async function updateFileContent( options ) {
+  let replace = [];
+  if(options.search && options.replacement)
+    replace.push({
+      search: options.search,
+      replacement: options.replacement
+    });
 
-  if(!flags.includes("g"))
+  if(options.replace && Array.isArray(options.replace))
+    replace = replace.concat(options.replace);
+  
+  replace = replace.map(({search, replacement, full_replacement}) => {
+    /**
+     * Set the global flag to ensure the search pattern is "stateful",
+     * while preserving flags the original search pattern.
+     */
+    let flags = search.flags;
+
+    if (!flags.includes("g"))
       flags = "g".concat(flags);
 
-  const pattern = new RegExp(
-      data.search.source // add parentheses for matching substrings exactly,
-          .replace(/(.*?)\((.*)\)(.*)/, "($1)($2)$3"),
-      flags
-  );
-
-  const separator = "separator" in data ? data.separator : /(?=\r?\n)/; // NOTE
-
-  return rw_stream(data.file, separator, (part, EOF) => {
-      part = part.replace(
-                pattern, 
-                (match_whole, prefix, match_substr) => 
-                    match_whole.replace (
-                            prefix.concat(match_substr),
-                            prefix.concat(data.replace)
-                        ) // using prefix as a hook
-          );
-
-      return EOF ? part : part.concat(data.join || "");
+    if(full_replacement || /(?<!\\)\$.+/.test(replacement)) {
+      return {
+        pattern: new RegExp (search.source, flags),
+        replacement: replacement
+      }
+    } else { // Replace the 1st parenthesized substring match with replacement.
+      return {
+        pattern: 
+          new RegExp (
+            search.source // add parentheses for matching substrings exactly,
+              .replace(/(.*?)\((.*)\)(.*)/, "($1)($2)$3"),
+            flags
+          ),
+        replacement: 
+          (match_whole, prefix, match_substr) =>
+            match_whole.replace(
+              prefix.concat(match_substr),
+              prefix.concat(replacement)
+            ) // using prefix as a hook
+          }
+    }
   });
+
+  const separator = "separator" in options ? options.separator : /(?=\r?\n)/; // NOTE
+
+  const join = options.join || "";
+
+  const callback = (part, EOF) => {
+    replace.forEach(rule => {
+      part = part.replace(
+        rule.pattern,
+        rule.replacement
+      );
+    });
+
+    return EOF ? part : part.concat(join);
+  };
+
+  if(options.file)
+    return rw_stream (
+        options.file,
+        separator,
+        callback, 
+        options.encoding
+      );
+  else 
+    return process_stream (
+        options.readStream || options.from, 
+        options.writeStream || options.to,
+        separator, 
+        callback, 
+        options.encoding
+      );
 }
 
-export default updateFileContent;
+async function updateFiles ( ) {
+ //TODO
+}
+
+export { updateFileContent, updateFiles };

@@ -2,12 +2,10 @@ import rw from "rw-stream";
 import { Transform } from "stream";
 import { StringDecoder } from 'string_decoder';
 
-async function rw_stream (filepath, separator, callback) {
-  const { readStream, writeStream } = await rw(filepath);
-  
-  return new Promise((resolve, reject) => {
+async function process_stream (readStream, writeStream, separator, callback, encoding = "utf8") {
+    return new Promise((resolve, reject) => {
       let buffer = '';
-      const decoder = new StringDecoder('utf8');
+      const decoder = new StringDecoder(encoding);
       
       readStream
           .pipe(
@@ -43,7 +41,14 @@ async function rw_stream (filepath, separator, callback) {
           .pipe(writeStream)
               .on("finish", resolve)
               .on("error", reject)
-  })
+    })
 }
 
-export default rw_stream;
+
+async function rw_stream (filepath, ...leftParams) {
+  const { readStream, writeStream } = await rw(filepath);
+  
+  return process_stream(readStream, writeStream, ...leftParams);
+}
+
+export { rw_stream, process_stream };
