@@ -2,7 +2,7 @@ import FetchHandler from "./assets/network-first.js";
 import cacheResources from "./assets/cache-resouces.js.js";
 import DLC from "./assets/downloadable.js";
 
-const version = "Whatever";
+const version = "1.2.4";
 const cacheName = "cache-" + version;
 
 self.addEventListener('install', e => {
@@ -11,7 +11,7 @@ self.addEventListener('install', e => {
     caches.open(cacheName).then(cache =>
       cache.addAll(cacheResources)
         .then(() => {
-          if('connection' in navigator && !navigator.connection.saveData && DLC.length){
+          if('connection' in navigator && !navigator.connection.saveData){
             cache.addAll(DLC);
           }
         })

@@ -3,18 +3,23 @@ import updateFileContent from "../src/index.mjs";
 import { processFiles } from "./helpers/process-files.mjs"
 import { __dirname, root_directory } from "./helpers/__dirname.mjs";
 
-(async () => {
-  await updateFileContent({
-    file: join(join(__dirname, "./service-worker/service-worker.js")),
-    search: /const\s+version\s*=\s*"(.+?)";?/,
-    replace: "Whatever"
-  });
-  console.info("Version number updated.");
-  await updateCacheResources();
-  console.info("CacheResources updated.");
-  await updateDLC();
-  console.info("DownloadableContent updated.");
-})()
+const mode = ["network-first", "offline-first"][1];
+
+updateFileContent({
+  file: join(__dirname, "./service-worker/service-worker.js"),
+  search: /(network-first)/,
+  replacement: mode
+}).then(() => console.info("Mode: ".concat(mode)))
+
+updateFileContent({
+  file: join(__dirname, "./service-worker/service-worker.js"),
+  search: /const\s+version\s*=\s*"(.+?)";?/,
+  replacement: "Whatever"
+}).then(() => console.info("Version number updated."))
+
+updateCacheResources().then(() => console.info("CacheResources updated."))
+
+updateDLC().then(() => console.info("DownloadableContent updated."))
 
 
 async function updateCacheResources () {
@@ -22,14 +27,9 @@ async function updateCacheResources () {
 
   replacement.push("`/`"); // root
 
-  await processFiles(join(root_directory, "./build/"), filename => {
-      replacement.push(
-          "`" +
-            decode(filename
-              .replace(/@((\d+\.)+\d+)/, "@${version}")) // main@3.1.4.js
-          + "`"
-          );
-  });
+  await processFiles(join(root_directory, "./build/"), filename => 
+      replacement.push(`"${decode(filename)}"`)
+  );
 
   return _updateCache("cache-resources.js", `\n  ${replacement.join(",\n  ")}\n`);
 }
@@ -51,12 +51,11 @@ function decode (filename) {
   return filename.replace(root_directory, "").replace(/\\/g, "/");
 }
 
-
 async function _updateCache(filename, replacement) {
   return updateFileContent({
       file: join(__dirname, "./service-worker/assets/", filename),
       search: /export\s+default\s+\[((.|\n)*?)\];/,
-      replace: replacement,
+      replacement,
       separator: null
   });
 }

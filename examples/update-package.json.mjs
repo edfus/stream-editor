@@ -5,5 +5,5 @@ import { root_directory } from "./helpers/__dirname.mjs";
 updateFileContent({
   file: join(root_directory, "./package.json"),
   search: /"version":\s*"(.+?)",?/,
-  replace: "Whatever"
+  replacement: "Whatever"
 });

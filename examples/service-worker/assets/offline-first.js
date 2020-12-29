@@ -9,15 +9,17 @@ class FetchHandler {
             const request = e.request.clone();
             const response = await fetch(request);
     
-            if (response.status !== 200 || !["cors", "basic"].includes(response.type) || /(\.mp3)$/.test(request.url)) {
+            if (response.status !== 200) {
               return response;
             }
-            if(request.method === "GET") {
-              const clone = response.clone();
+
+            if (request.method === "GET" && ["cors", "basic"].includes(response.type)) {
+              const cloned = response.clone();
               e.waitUntil(
-                caches.open(cacheName).then(cache => cache.put(request.url, clone))
+                caches.open(cacheName).then(cache => cache.put(request.url, cloned))
               )
             }
+
             return response;
           }
         })
