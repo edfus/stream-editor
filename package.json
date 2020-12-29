@@ -1,39 +1,57 @@
 {
   "name": "update-file-content",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "description": "",
   "scripts": {
     "example": "node examples/update-sw-content.mjs",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "example/pack": "node examples/pack.mjs",
+    "example/npm": "node examples/update-package.json.mjs",
+    "test/pack": "mocha --ui tdd test/test-pack.mjs"
   },
   "directories": {
     "example": "examples",
     "test": "test"
   },
   "files": [
-    "build/three.js",
-    "build/three.min.js",
-    "build/three.module.js",
-    "examples/js",
-    "examples/jsm",
-    "examples/fonts",
-    "LICENSE",
-    "package.json",
     "README.md",
-    "src"
+    "package.json",
+    "build/index.js",
+    "build/index.mjs",
+    "build/process.js",
+    "build/process.mjs",
+    "examples/pack.mjs",
+    "examples/update-package.json.mjs",
+    "examples/update-sw-content.mjs",
+    "src/index.d.ts",
+    "src/index.mjs",
+    "src/process.mjs",
+    "test/test-pack.mjs",
+    "examples/helpers/process-files.mjs",
+    "examples/helpers/__dirname.mjs",
+    "examples/service-worker/service-worker.js",
+    "examples/service-worker/assets/cache-resources.js",
+    "examples/service-worker/assets/downloadable.js",
+    "examples/service-worker/assets/network-first.js",
+    "examples/service-worker/assets/offline-first.js"
   ],
   "main": "build/index.js",
   "module": "build/index.mjs",
   "types": "src/index.d.ts",
   "author": "edfus",
-  "keywords": ["regex", "stream", "text replace"],
-  "homepage": "https://threejs.org/",
+  "keywords": [
+    "regex",
+    "stream",
+    "text replace"
+  ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mrdoob/three.js.git"
+    "url": "git+https://github.com/edfus/update-file-content.git"
   },
   "license": "ISC",
   "dependencies": {
     "rw-stream": "^0.3.3"
+  },
+  "devDependencies": {
+    "@types/mocha": "^8.2.0"
   }
 }
