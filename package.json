@@ -1,0 +1,38 @@
+{
+  "name": "update-file-content",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "directories": {
+    "example": "examples",
+    "test": "test"
+  },
+  "files": [
+    "build/three.js",
+    "build/three.min.js",
+    "build/three.module.js",
+    "examples/js",
+    "examples/jsm",
+    "examples/fonts",
+    "LICENSE",
+    "package.json",
+    "README.md",
+    "src"
+  ],
+  "main": "build/index.js",
+  "module": "build/index.mjs",
+  "types": "src/index.d.ts",
+  "author": "edfus",
+  "keywords": ["regex", "stream", "text replace"],
+  "homepage": "https://threejs.org/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mrdoob/three.js.git"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "rw-stream": "^0.3.3"
+  }
+}
