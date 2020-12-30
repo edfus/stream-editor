@@ -12,7 +12,8 @@ Promise.all(
     async folder => await processFiles(
       folder,
       filename => {
-        replacement.push(`"${decode(filename)}"`);
+        if(!/dump.*/.test(filename))
+          replacement.push(`"${decode(filename)}"`);
       }
     )
   ))
