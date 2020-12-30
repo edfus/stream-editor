@@ -1,54 +1,92 @@
+import { fstat } from "fs";
 import rw from "rw-stream";
 import { Transform } from "stream";
 import { StringDecoder } from 'string_decoder';
 
-async function process_stream (readStream, writeStream, separator, callback, encoding = "utf8") {
-    return new Promise((resolve, reject) => {
-      let buffer = '';
-      const decoder = new StringDecoder(encoding);
-      
-      readStream
-          .pipe(
-              new Transform({
-                  transform (chunk, encoding, cb) {
-                      chunk = decoder.write(chunk);
+async function process_stream (readStream, writeStream, separator, callback, encoding) {
+  let buffer = '';
+  const decoder = new StringDecoder(encoding);
 
-                      const parts = chunk.split(separator);
-                      buffer = buffer.concat(parts[0]);
+  const transformStream = (
+      new Transform({
+        transform (chunk, whatever, cb) {
+            chunk = decoder.write(chunk);
 
-                      if(parts.length === 1) {
-                          return cb();
-                      }
+            const parts = chunk.split(separator);
+            buffer = buffer.concat(parts[0]);
 
-                      // length > 1
-                      this.push(callback(buffer, false));
+            if(parts.length === 1) {
+                return cb();
+            }
 
-                      for(let i = 1; i < parts.length - 1; i++) {
-                          this.push(callback(parts[i], false));
-                      }
+            // length > 1
+            parts[0] = buffer;
 
-                      buffer = parts[parts.length - 1];
-                      return cb();
-                  },
-                  flush (cb) { // outro
-                      return cb(
-                              null,
-                              callback(buffer, true)
-                          )
-                  }
-              })
-          )
-          .pipe(writeStream)
-              .on("finish", resolve)
-              .on("error", reject)
-    })
+            for(let i = 0; i < parts.length - 1; i++) {
+              if(this.push(callback(parts[i], false), encoding) === false)
+                return cb(); // additional chunks of data can't be pushed
+            }
+
+            buffer = parts[parts.length - 1];
+            return cb();
+        },
+        flush (cb) { // outro
+            return cb(
+                    null,
+                    callback(buffer, true)
+                )
+        }
+      })
+  );
+  
+  if(callback.with_limit) {
+    let nuked = false;
+    callback._nuke_ = () => {
+      if(nuked)
+        return "nuked";
+      else nuked = true;
+    }
+
+    const push_func = transformStream.push;
+
+
+    transformStream.push = function () {
+      if(!nuked)
+        return push_func.apply(this, arguments);
+      else if(!this.destroyed) {
+        readStream.destroy(); // close that one piping in
+        this.end(); // and close the writable side (for not eating readStream's leftover)
+        push_func.apply(this, arguments); // push the last data
+        this.destroy(); // prevent further pushes, null will be pushed by Node.js
+        return false; // Readable.push will return false when additional chunks of data can't be pushed
+      } else {
+        // strictEqual(null, arguments[0]);
+        return push_func.apply(this, arguments);
+      }
+    }.bind(transformStream);
+  }
+    
+  return new Promise((resolve, reject) => {
+    readStream
+        .pipe(transformStream)
+        .pipe(writeStream)
+            .on("finish", resolve)
+            .on("error", reject)
+  })
 }
 
 
 async function rw_stream (filepath, ...leftParams) {
-  const { readStream, writeStream } = await rw(filepath);
-  
-  return process_stream(readStream, writeStream, ...leftParams);
+  const { fd, readStream, writeStream } = await rw(filepath);
+  if(
+    await new Promise(
+      (resolve, reject) => 
+      fstat(fd, (err, status) => err ? reject(err) : resolve(status.isFile()))
+    ) // fs.open won't throw a complaint, so it's our duty.
+  )
+    return process_stream(readStream, writeStream, ...leftParams);
+  else
+    throw new Error(`update-file-content: filepath ${filepath} is invalid.`);
 }
 
 export { rw_stream, process_stream };
