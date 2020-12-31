@@ -78,6 +78,7 @@ async function process_stream (
              // so there is no need for resetting _transform now
             return cb(null, buffer);
           };
+          push_func.apply(this, arguments);
           this.push = push_func.bind(this);
           return true;
         } 
