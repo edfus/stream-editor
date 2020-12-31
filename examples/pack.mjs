@@ -85,6 +85,12 @@ const validation = join(root_directory, "./test");
         })
       })
     )
+    .then(() => new Promise((resolve, reject) => {
+        exec(`npm run example/npm`, (err, stdout, stderr) => {
+          if(err) return reject(err);
+          return resolve(console.info(stdout));
+        });
+      })
+    )
   }
-)
-
+);

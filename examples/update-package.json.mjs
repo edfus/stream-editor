@@ -12,7 +12,7 @@ Promise.all(
     async folder => await processFiles(
       folder,
       filename => {
-        if(!/dump.*/.test(filename))
+        if(!/dump.*|\.tmp/.test(filename))
           replacement.push(`"${decode(filename)}"`);
       }
     )
@@ -40,6 +40,8 @@ Promise.all(
                   return 0;
                 }
               }, 1); // increment 1 each time
+
+              console.info(`\tversion ${pr_version} -> ${nums.join(".")} ✔`);
 
               return match.replace(
                 prefix.concat(pr_version),

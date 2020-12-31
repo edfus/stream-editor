@@ -9,7 +9,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 describe("update files" ,() => {
   const char_map = "dbdbdbThisIsADumbTestbbbsms".split("");
-  const dump$ = ["-dumplings", "-limit", "-truncate-self", "-empty"];
+  const dump$ = ["-dumplings", "-limitations", "-truncate-self", "-empty"];
   
   it("should pipe one Readable to multiple dumps", async () => {
     let counter = 0;
@@ -205,10 +205,18 @@ describe("update files" ,() => {
 
       await fsp.readFile(join(__dirname, `./dump${dump$[2]}`), "utf-8")
               .then(
-                result => assert.strictEqual(
-                  91 - 88,
-                  (result.match(/\n/g) || []).length
-                )
+                result => { 
+                  assert.strictEqual(
+                    91 - 88,
+                    (result.match(/\n/g) || []).length
+                  );
+
+                  fsp.writeFile(
+                    join(__dirname, `./dump${dump$[2]}`),
+                    `Checked✅: ${91 - 88} lines prefixed with \\n left\n`
+                      .concat(result)
+                  );
+                }
               );
     });
 

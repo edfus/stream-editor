@@ -7,20 +7,26 @@ const mode = ["network-first", "offline-first"][1];
 
 updateFileContent({
   file: join(__dirname, "./service-worker/service-worker.js"),
-  search: /(network-first)/,
-  replacement: mode
-}).then(() => console.info("Mode: ".concat(mode)))
+  replace: [
+    {
+      search: /(network-first)/,
+      replacement: mode
+    },
+    {
+      search: /const\s+version\s*=\s*"(.+?)";?/,
+      replacement: "Whatever"
+    }
+  ]
+}).then(
+  () => 
+  console.info("Mode: ".concat(mode)) 
+  || 
+  console.info("Version number updated.")
+);
 
-updateFileContent({
-  file: join(__dirname, "./service-worker/service-worker.js"),
-  search: /const\s+version\s*=\s*"(.+?)";?/,
-  replacement: "Whatever"
-}).then(() => console.info("Version number updated."))
+updateCacheResources().then(() => console.info("CacheResources updated."));
 
-updateCacheResources().then(() => console.info("CacheResources updated."))
-
-updateDLC().then(() => console.info("DownloadableContent updated."))
-
+updateDLC().then(() => console.info("DownloadableContent updated."));
 
 async function updateCacheResources () {
   const replacement = [];
