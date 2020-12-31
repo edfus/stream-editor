@@ -78,11 +78,21 @@ describe("update files" ,() => {
       limit: 1
     });
 
+    await updateFileContent({ // search string with limit
+      file: join(__dirname, `./dump${dump$[1]}`),
+      replace: [{
+        search: "%%",
+        replacement: "---3---%%", // 7
+        limit: 2
+      }],
+      limit: 1
+    });
+
     await fsp.readFile(join(__dirname, `./dump${dump$[1]}`), "utf-8")
       .then(result => {
         assert.strictEqual(
-          "^^^^^^^1^^^^^^^%%%%%%2%%%%%%",
-          result.slice(0, 15 + 13)
+          "^^^^^^^1^^^^^^^---3---%%%%%%2%%%%%%",
+          result.slice(0, 15 + 13 + 7)
         );
 
         assert.ok(
@@ -90,7 +100,7 @@ describe("update files" ,() => {
         );
 
         assert.ok(
-          !result.slice(15 + 13, result.length).includes("%")
+          !result.slice(15 + 13 + 7, result.length).includes("%")
         );
       })
   });

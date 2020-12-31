@@ -1,11 +1,11 @@
 {
   "name": "update-file-content",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "A simple utility for executing RegEx replacement on files, powered by stream.",
   "scripts": {
     "example": "node examples/update-sw-content.mjs",
-    "example/pack": "node examples/pack.mjs",
     "example/npm": "node examples/update-package.json.mjs",
+    "pack": "node examples/pack.mjs",
     "test": "mocha test/test.mjs",
     "test/pack": "mocha --ui tdd test/test-pack.mjs"
   },

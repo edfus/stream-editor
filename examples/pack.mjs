@@ -1,3 +1,4 @@
+import { exec } from "child_process";
 import { createReadStream, createWriteStream } from "fs";
 import { join, basename, extname } from "path";
 import { updateFileContent } from "../src/index.mjs";
@@ -5,6 +6,7 @@ import { root_directory } from "./helpers/__dirname.mjs";
 
 const source = join(root_directory, "./src");
 const destination = join(root_directory, "./build");
+const validation = join(root_directory, "./test");
 
 ["./index.mjs", "./process.mjs"].forEach(
   filename => {
@@ -26,14 +28,63 @@ const destination = join(root_directory, "./build");
         { // import default
           search: /import\s+([^{}]+?)\s+from\s*['"](.+?)['"];?/,
           replacement: "const $1 = require(\"$2\");",
-          full_replacement: true // optional
+          full_replacement: true
         },
         { // destructuring a single property without renaming.
-          search: /import\s+\{\s*(.+?)\s*\}\s+from\s*['"](.+?)['"];?/,
-          replacement: "const $1 = require(\"$2\").$1;"
+          search: /import\s+\{\s*([^,]+?)(?!\s+as)\s*\}\s+from\s*['"](.+?)['"];?/,
+          replacement: "const $1 = require(\"$2\").$1;",
+          full_replacement: true
+        },
+        {
+          search: `import { process_stream, rw_stream } from "./process.mjs";`,
+          replacement: 
+          `const streams = require("./process.js");\n`
+          + `const { process_stream, rw_stream } = streams;`
+        },
+        {
+          search: `import { PassThrough, Readable } from "stream";`,
+          replacement: 
+          `const stream = require("stream");\n`
+          + `const { PassThrough, Readable } = stream;`
+        },
+        {
+          search: /(export)\s*\{.+?\};?/,
+          replacement: "module.exports =",
+          full_replacement: false
         }
       ]
     })
+  }
+);
+
+
+["./test.mjs"].forEach(
+  filename => {
+    const temp_dst = join (
+      validation,
+      basename(filename).replace(extname(filename), "").concat(".tmp.mjs")
+    );
+
+    updateFileContent({ // .js
+      readStream: createReadStream(join(validation, filename)),
+      writeStream: 
+        createWriteStream (temp_dst),
+      replace: [
+        {
+          search: `import { updateFileContent, updateFiles } from "../src/index.mjs";`,
+          replacement: 
+          `import _$ from "../build/index.js";\n`
+          + `const { updateFileContent, updateFiles } = _$;`
+        }
+      ]
+    })
+    .then(() => new Promise((resolve, reject) => {
+        exec(`mocha ${temp_dst}`, (err, stdout, stderr) => {
+          if(err) return reject(err);
+          return resolve(console.info(stdout));
+        })
+      })
+    )
   }
 )
 

@@ -62,8 +62,29 @@ function _getReplaceFunc ( options ) {
   /**/ const _nuke_ = () => callback._nuke_(); /**/
 
   replace = replace.map(({search, replacement, full_replacement, limit}) => {
-    if(!validate(search, RegExp) || !is(replacement, Function, ""))
-      throw new Error("update-file-content: !validate(search, RegExp) || !is(replacement, Function, \"\")");
+    if(!is(search, RegExp, "") || !is(replacement, Function, ""))
+      throw new Error("update-file-content: !is(search, RegExp, \"\") || !is(replacement, Function, \"\")");
+    
+    let rule;
+
+    if(typeof search === "string") {
+      full_replacement = true; // must be
+
+      const escapeRegEx = new RegExp(
+        "(" + "[]\^$.|?*+(){}".split("").map(c => "\\".concat(c)).join("|") + ")",
+        "g"
+      );
+
+      search = {
+        source: search.replace(escapeRegEx, "\\$1"),
+        flags: "g"
+      };
+      
+      if(typeof replacement === "string") {
+        const temp_str = replacement;
+        replacement = () => temp_str;
+      } // make sure replacement is a funciton so that limitation can be applied
+    }
     
     /**
      * Set the global flag to ensure the search pattern is "stateful",
@@ -73,8 +94,6 @@ function _getReplaceFunc ( options ) {
 
     if (!flags.includes("g"))
       flags = "g".concat(flags);
-
-    let rule;
 
     if(full_replacement || typeof replacement === "function" || /(?<!\\)\$.+/.test(replacement)) {
       rule = {
