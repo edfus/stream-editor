@@ -21,9 +21,34 @@ function _getReplaceFunc ( options ) {
   if(validate(options.replace, Array)) // will be validated in replace.map
     replace = replace.concat(options.replace);
 
-  const join = options.join || "";
+  let join;
+
+  if("join" in options) {
+    const join_option = options.join; // for garbage collection
+
+    switch(typeof join_option) {
+      case "function": 
+        join = options.join;
+        break;
+      case "string":
+        join = part => part.concat(join_option);
+        break;
+      case "undefined": 
+        join = part => part;
+        break;
+      default: throw new Error(
+        "update-file-content: options.join "
+        + String(options.join)
+        + " is invalid."
+      )
+    }
+  } else {
+    join = part => part;
+  }
 
   const callback = (part, EOF) => {
+    if(typeof part !== "string") return ""; // "Adbfdbdafb".split(/(?=([^,\n]+(,\n)?|(,\n)))/)
+
     replace.forEach(rule => {
       part = part.replace(
         rule.pattern,
@@ -31,7 +56,7 @@ function _getReplaceFunc ( options ) {
       );
     });
 
-    return EOF ? part : part.concat(join);
+    return EOF ? part : join(part);
   };
   
   /**/ const _nuke_ = () => callback._nuke_(); /**/
@@ -49,13 +74,15 @@ function _getReplaceFunc ( options ) {
     if (!flags.includes("g"))
       flags = "g".concat(flags);
 
+    let rule;
+
     if(full_replacement || typeof replacement === "function" || /(?<!\\)\$.+/.test(replacement)) {
-      return {
+      rule = {
         pattern: new RegExp (search.source, flags),
         replacement: replacement
       }
     } else { // Replace the 1st parenthesized substring match with replacement.
-      const rule = {
+      rule = {
         pattern: 
           new RegExp (
             search.source // add parentheses for matching substrings exactly,
@@ -69,12 +96,14 @@ function _getReplaceFunc ( options ) {
               prefix.concat(replacement)
             ) // using prefix as a hook
       }
-      
-      // limit
-      if(validate(limit, 1) || global_limit) {
+    }
+
+     // limit
+    if(validate(limit, 1) || global_limit) {
+      if(typeof rule.replacement === "function") {
         let counter = 0;
         const func_ptr = rule.replacement;
-
+  
         rule.replacement = function (_nuke_, ...args) {
           if(
               ( global_limit && ++global_counter >= global_limit )
@@ -82,15 +111,20 @@ function _getReplaceFunc ( options ) {
             )
             if(_nuke_() === "nuked")
               return args[0]; // return the whole unmodified match string
-
+  
           return func_ptr.apply(this, args);
         }.bind(rule, _nuke_);
-
+  
         callback.with_limit = true;
+        callback.truncate = options.truncate;
+      } else {
+        throw new Error("update-file-content: received non-function full replacement "
+                        + rule.replacement
+                        + " while limit being specified");
       }
-
-      return rule;
     }
+
+    return rule;
   });
 
   return callback;
@@ -100,14 +134,18 @@ async function updateFileContent( options ) {
   const callback = _getReplaceFunc(options);
   const separator = "separator" in options ? options.separator : /(?=\r?\n)/; // NOTE
   const encoding = options.encoding || "utf8";
+  const truncate = "truncate" in options ? options.truncate : true;
 
   if("file" in options) {
     if(validate(options.file, "."))
       return rw_stream (
           options.file,
-          separator,
-          callback, 
-          encoding
+          {
+            separator,
+            callback,
+            encoding,
+            truncate
+          }
         );
     else throw new Error("updateFileContent: options.file is invalid.")
   } else {
@@ -118,9 +156,12 @@ async function updateFileContent( options ) {
       return process_stream (
         readStream, 
         writeStream,
-        separator, 
-        callback, 
-        encoding
+        {
+          separator, 
+          callback, 
+          encoding,
+          truncate
+        }
       );
     else throw new Error("updateFileContent: options.(readStream|writeStream|from|to) is invalid.")
   }
@@ -130,14 +171,18 @@ async function updateFiles ( options ) {
   const callback = _getReplaceFunc(options);
   const separator = "separator" in options ? options.separator : /(?=\r?\n)/;
   const encoding = options.encoding || "utf8";
+  const truncate = "truncate" in options ? options.truncate : true;
 
   if(validate(options.files, Array) && validate(...options.files, ".")) {
     return options.file.map(file => 
       rw_stream (
         file,
-        separator,
-        callback, 
-        encoding
+        {
+          separator,
+          callback, 
+          encoding,
+          truncate
+        }
       )
     );
   } else {
@@ -151,9 +196,12 @@ async function updateFiles ( options ) {
           process_stream (
             readStream.pipe(new PassThrough()), 
             writeStream,
-            separator, 
-            callback,
-            encoding
+            {
+              separator, 
+              callback,
+              encoding,
+              truncate
+            }
           )
         });
       } else {

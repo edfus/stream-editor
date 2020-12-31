@@ -9,12 +9,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 describe("update files" ,() => {
   const char_map = "dbdbdbThisIsADumbTestbbbsms".split("");
-  const dump$ = [1, 2, 3];
-  let counter;
-
-  beforeEach(() => counter = 0);
-
+  const dump$ = ["-dumplings", "-limit", "-truncate-self", "-empty"];
+  
   it("should pipe one Readable to multiple dumps", async () => {
+    let counter = 0;
+
     await updateFiles({
       readStream: new Readable({
         highWaterMark: 100,
@@ -26,9 +25,10 @@ describe("update files" ,() => {
                 : char_map[i % char_map.length].toLowerCase()
               )
           }
-          this.push(",\n")
           if(++counter > 90) {
             this.push(null);
+          } else {
+            this.push(",\n");
           }
         }
       }),
@@ -123,17 +123,133 @@ describe("update files" ,() => {
         err.message
       )
     }
-  }); 
 
-  it("can handle empty string", async () => {
-    await updateFileContent({
-      file: join(__dirname, `./dump${dump$[2]}`),
-      separator: null,
-      search: /(.|\n)*/,
-      replacement: () => "", // full replacement
-      limit: 88
+    try {
+      await updateFileContent({
+        file: "./",
+        replace: [
+          {
+            search: /((.|\n)*)/,
+            replacement: "$1"
+          },
+          {
+            search: /[a-z]{5}.{5}/i,
+            replacement: "-"
+          },
+        ],
+        join: part => part === "" ? "" : part.concat("\n"),
+        limit: 88
+      });
+    } catch (err) {
+      assert.strictEqual (
+        "update-file-content: received non-function full replacement $1 while limit being specified",
+        err.message
+      )
+    }
+
+    try {
+      await updateFileContent({
+        file: "./",
+        replace: [
+          {
+            search: /((.|\n)*)/,
+            replacement: "$1"
+          },
+          {
+            search: /[a-z]{5}.{5}/i,
+            replacement: "-"
+          },
+        ],
+        join: null,
+        limit: 88
+      });
+    } catch (err) {
+      assert.strictEqual (
+        "update-file-content: options.join null is invalid.",
+        err.message
+      )
+    }
+  });
+
+  describe("not truncating the rest when limitations reached", () => {
+    it("self rw-stream", async () => {
+      await fsp.readFile(join(__dirname, `./dump${dump$[2]}`), "utf-8")
+              .then(
+                result => assert.strictEqual(
+                  90,
+                  result.match(/\n/g).length
+                )
+              )
+
+      await updateFileContent({
+        file: join(__dirname, `./dump${dump$[2]}`),
+        separator: /,/,
+        search: /(.|\n)+/, 
+        // must + rather than * otherwise '' will be captured too
+        replacement: () => "", // full replacement
+        limit: 88, 
+        // totally there are 91 lines,
+        // 90 of them are prefixed with \n, except the first one
+        truncate: false
+      });
+
+      await fsp.readFile(join(__dirname, `./dump${dump$[2]}`), "utf-8")
+              .then(
+                result => assert.strictEqual(
+                  91 - 88,
+                  (result.match(/\n/g) || []).length
+                )
+              );
     });
-  }); // currently not available
+
+    it("piping stream", async () => {
+      let counter = 0;
+      await updateFileContent({
+        from: new Readable({
+          highWaterMark: 20,
+          read (size) {
+            counter++;
+            if(counter === 10) {
+              return this.push("==SEALED==\n");
+            }
+            if(counter === 15) {
+              this.push("==END==");
+              return this.push(null);
+            }
+            for(let i = 0; i < size; i++) {
+              this.push(`${Math.random()} `);
+            }
+            this.push(",\n");
+          }
+        }),
+        to: createWriteStream(join(__dirname, `./dump-truncate-pipe`)),
+        separator: /,\n/,
+        join: part => part === "" ? "" : part.concat(",\n"),
+        search: /.+/,
+        replacement: () => "",
+        limit: 9, 
+        truncate: false
+      });
+
+      await fsp.readFile(join(__dirname, `./dump-truncate-pipe`), "utf-8")
+              .then(
+                result => assert.strictEqual(
+                  "==SEALED==\n",
+                  result.slice(0, 11)
+                )
+              );
+    })
+  });
+
+  it("can handle empty content", async () => {
+    await updateFileContent({
+      file: join(__dirname, `./dump${dump$[3]}`),
+      separator: /,/,
+      search: /(.|\n)+/, 
+      replacement: () => "", // full replacement
+      limit: 88 // truncate is true by default
+    });
+  });
   
   //TODO: test encoding
 })
