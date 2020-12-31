@@ -1,5 +1,5 @@
 import { exec } from "child_process";
-import { createReadStream, createWriteStream } from "fs";
+import { createReadStream, createWriteStream, unlink } from "fs";
 import { join, basename, extname } from "path";
 import { updateFileContent } from "../src/index.mjs";
 import { root_directory } from "./helpers/__dirname.mjs";
@@ -92,5 +92,8 @@ const validation = join(root_directory, "./test");
         });
       })
     )
+    .then(() => new Promise((resolve, reject) => 
+      unlink(temp_dst, err => err ? reject(err) : resolve())
+    ))
   }
 );

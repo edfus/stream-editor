@@ -85,7 +85,8 @@ describe("update files" ,() => {
         replacement: "---3---%%", // 7
         limit: 2
       }],
-      limit: 1
+      limit: 1,
+      truncate: true
     });
 
     await fsp.readFile(join(__dirname, `./dump${dump$[1]}`), "utf-8")
@@ -268,6 +269,57 @@ describe("update files" ,() => {
       limit: 88 // truncate is true by default
     });
   });
+
+  it("try-on", async () => {
+    const processFiles = 
+      (await import("../examples/helpers/process-files.mjs")).processFiles
+    ;
+
+    await resolveNodeDependencies(
+      "/node_modules/three/build/three.module.js",
+      "three"
+    );
+
+    async function resolveNodeDependencies (from, to) {
+      const handler = async file => {
+        if(/\.tmp$/.test(file))
+          return ;
+
+        const options = {
+          file,
+          search: new RegExp(
+            `${/\s*from\s*['"]/.source}(${from.replace(/\//g, "\/")})${/['"]/.source}`,
+            "g"
+          ),
+          replacement: to
+        }
+    
+        await fsp.readFile(file, "utf-8")
+          .then(result => 
+            fsp.writeFile(file.concat(".tmp"),
+              result.replace (
+                options.search,
+                to
+              )
+            )
+          )
+        
+        await updateFileContent(options);
+
+        await fsp.readFile(file, "utf-8")
+          .then(async result => {
+            const should_be = await fsp.readFile(file.concat(".tmp"), "utf-8");
+            assert.strictEqual(
+              should_be,
+              result
+            );
+          })
+      };
+    
+      await processFiles(join(__dirname, "./dump/"), handler);
+    }
+  })
   
   //TODO: test encoding
-})
+});
+
