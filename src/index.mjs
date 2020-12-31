@@ -153,7 +153,7 @@ async function updateFileContent( options ) {
   const callback = _getReplaceFunc(options);
   const separator = "separator" in options ? options.separator : /(?=\r?\n)/; // NOTE
   const encoding = options.encoding || "utf8";
-  const truncate = "truncate" in options ? options.truncate : true;
+  const truncate = "truncate" in options ? options.truncate : false;
 
   if("file" in options) {
     if(validate(options.file, "."))
@@ -190,7 +190,7 @@ async function updateFiles ( options ) {
   const callback = _getReplaceFunc(options);
   const separator = "separator" in options ? options.separator : /(?=\r?\n)/;
   const encoding = options.encoding || "utf8";
-  const truncate = "truncate" in options ? options.truncate : true;
+  const truncate = "truncate" in options ? options.truncate : false;
 
   if(validate(options.files, Array) && validate(...options.files, ".")) {
     return options.file.map(file => 
