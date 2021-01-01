@@ -36,7 +36,7 @@ function _getReplaceFunc ( options ) {
       case "undefined": 
         join = part => part;
         break;
-      default: throw new Error(
+      default: throw new TypeError(
         "update-file-content: options.join "
         + String(options.join)
         + " is invalid."
@@ -63,7 +63,7 @@ function _getReplaceFunc ( options ) {
 
   replace = replace.map(({search, replacement, full_replacement, limit}) => {
     if(!is(search, RegExp, "") || !is(replacement, Function, ""))
-      throw new Error("update-file-content: !is(search, RegExp, \"\") || !is(replacement, Function, \"\")");
+      throw new TypeError("update-file-content: !is(search, RegExp, \"\") || !is(replacement, Function, \"\")");
     
     let rule;
 
@@ -128,7 +128,7 @@ function _getReplaceFunc ( options ) {
               ( global_limit && ++global_counter >= global_limit )
               || ++counter >= limit
             )
-            if(_nuke_() === "nuked")
+            if(_nuke_() === Symbol.for("nuked"))
               return args[0]; // return the whole unmodified match string
   
           return func_ptr.apply(this, args);
@@ -137,7 +137,7 @@ function _getReplaceFunc ( options ) {
         callback.with_limit = true;
         callback.truncate = options.truncate;
       } else {
-        throw new Error("update-file-content: received non-function full replacement "
+        throw new TypeError("update-file-content: received non-function full replacement "
                         + rule.replacement
                         + " while limit being specified");
       }
@@ -166,7 +166,7 @@ async function updateFileContent( options ) {
             truncate
           }
         );
-    else throw new Error("updateFileContent: options.file is invalid.")
+    else throw new TypeError("updateFileContent: options.file is invalid.")
   } else {
     const readStream = options.readStream || options.from;
     const writeStream = options.writeStream || options.to;
@@ -182,7 +182,7 @@ async function updateFileContent( options ) {
           truncate
         }
       );
-    else throw new Error("updateFileContent: options.(readStream|writeStream|from|to) is invalid.")
+    else throw new TypeError("updateFileContent: options.(readStream|writeStream|from|to) is invalid.")
   }
 }
 
@@ -224,7 +224,7 @@ async function updateFiles ( options ) {
           )
         });
       } else {
-        throw new Error("updateFiles: options.(writeStream|to) is not an instance of Array<WriteStream>");
+        throw new TypeError("updateFiles: options.(writeStream|to) is not an instance of Array<WriteStream>");
       }  
     }
       

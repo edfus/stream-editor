@@ -9,8 +9,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 describe("update files" ,() => {
   const char_map = "dbdbdbThisIsADumbTestbbbsms".split("");
-  const dump$ = ["-dumplings", "-limitations", "-truncate-self", "-empty"];
-  
+  const dump$ = [
+    "-dumplings", "-limitations",
+    "-truncate-self", 
+    "-empty"
+  ];
+  const dump_ = [
+    "-truncate-pipe",
+    "-premature"
+  ];
+
   it("should pipe one Readable to multiple dumps", async () => {
     let counter = 0;
 
@@ -78,32 +86,17 @@ describe("update files" ,() => {
       limit: 1
     });
 
-    await updateFileContent({ // search string with limit
-      file: join(__dirname, `./dump${dump$[1]}`),
-      replace: [{
-        search: "%%",
-        replacement: "---3---%%", // 7
-        limit: 2
-      }],
-      limit: 1,
-      truncate: true
-    });
-
     await fsp.readFile(join(__dirname, `./dump${dump$[1]}`), "utf-8")
-      .then(result => {
-        assert.strictEqual(
-          "^^^^^^^1^^^^^^^---3---%%%%%%2%%%%%%",
-          result.slice(0, 15 + 13 + 7)
-        );
-
-        assert.ok(
-          result.lastIndexOf(",") === result.length - 1
-        );
-
-        assert.ok(
-          !result.slice(15 + 13 + 7, result.length).includes("%")
-        );
-      })
+            .then(result => {
+              assert.strictEqual(
+                "^^^^^^^1^^^^^^^%%%%%%2%%%%%%",
+                result.slice(0, 15 + 13)
+              );
+      
+              assert.ok(
+                !result.slice(15 + 13, result.length).includes("%")
+              );
+            })
   });
 
   it("should check arguments", async () => {
@@ -182,8 +175,37 @@ describe("update files" ,() => {
     }
   });
 
-  describe("not truncating the rest when limitations reached", () => {
-    it("self rw-stream", async () => {
+  describe("truncation & limitation", () => {
+    it("truncating the rest when limitations reached", async () => {
+      await updateFileContent({ // search string with limit
+        file: join(__dirname, `./dump${dump$[1]}`),
+        replace: [{
+          search: "%%",
+          replacement: "---3---%%", // 7
+          limit: 2
+        }],
+        limit: 1,
+        truncate: true
+      });
+  
+      await fsp.readFile(join(__dirname, `./dump${dump$[1]}`), "utf-8")
+        .then(result => {
+          assert.strictEqual(
+            "^^^^^^^1^^^^^^^---3---%%%%%%2%%%%%%",
+            result.slice(0, 15 + 13 + 7)
+          );
+  
+          assert.ok(
+            result.lastIndexOf(",") === result.length - 1
+          );
+  
+          assert.ok(
+            !result.slice(15 + 13 + 7, result.length).includes("%")
+          );
+        })
+    });
+
+    it("not: self rw-stream", async () => {
       await fsp.readFile(join(__dirname, `./dump${dump$[2]}`), "utf-8")
               .then(
                 result => assert.strictEqual(
@@ -221,7 +243,7 @@ describe("update files" ,() => {
               );
     });
 
-    it("piping stream", async () => {
+    it("not: piping stream", async () => {
       let counter = 0;
       await updateFileContent({
         from: new Readable({
@@ -241,7 +263,7 @@ describe("update files" ,() => {
             this.push(",\n");
           }
         }),
-        to: createWriteStream(join(__dirname, `./dump-truncate-pipe`)),
+        to: createWriteStream(join(__dirname, `./dump${dump_[0]}`)),
         separator: /,\n/,
         join: part => part === "" ? "" : part.concat(",\n"),
         search: /.+/,
@@ -250,7 +272,7 @@ describe("update files" ,() => {
         truncate: false
       });
 
-      await fsp.readFile(join(__dirname, `./dump-truncate-pipe`), "utf-8")
+      await fsp.readFile(join(__dirname, `./dump${dump_[0]}`), "utf-8")
               .then(
                 result => assert.strictEqual(
                   "==SEALED==\n",
@@ -260,65 +282,136 @@ describe("update files" ,() => {
     })
   });
 
-  it("can handle empty content", async () => {
-    await updateFileContent({
-      file: join(__dirname, `./dump${dump$[3]}`),
-      separator: /,/,
-      search: /(.|\n)+/, 
-      replacement: () => "", // full replacement
-      limit: 88 // truncate is true by default
+  describe("corner cases", () => {
+    it("can handle empty content", async () => {
+      await updateFileContent({
+        file: join(__dirname, `./dump${dump$[3]}`),
+        separator: /,/,
+        search: /(.|\n)+/, 
+        replacement: () => "", // full replacement
+        limit: 88,
+        truncate: true
+      });
+  
+      await fsp.readFile(join(__dirname, `./dump${dump$[3]}`), "utf-8")
+                .then(result => assert.strictEqual(
+                  '',
+                  result
+                ))
     });
-  });
-
-  it("try-on", async () => {
-    const processFiles = 
-      (await import("../examples/helpers/process-files.mjs")).processFiles
-    ;
-
-    await resolveNodeDependencies(
-      "/node_modules/three/build/three.module.js",
-      "three"
-    );
-
-    async function resolveNodeDependencies (from, to) {
-      const handler = async file => {
-        if(/\.tmp$/.test(file))
-          return ;
-
-        const options = {
-          file,
-          search: new RegExp(
-            `${/\s*from\s*['"]/.source}(${from.replace(/\//g, "\/")})${/['"]/.source}`,
-            "g"
-          ),
-          replacement: to
+  
+    it("can handle premature stream close", async () => {
+      // streams by themselves can only propagate errors up but not down.
+      const writeStream = 
+        createWriteStream(join(__dirname, `./dump${dump_[1]}`))
+            .once("error", () => logs.push("Event: writeStream errored"))
+      ;
+  
+      writeStream.destroy = new Proxy(writeStream.destroy, {
+        apply (target, thisArg, argumentsList) {
+          logs.push("Proxy: writeStream.destroy.apply");
+  
+          return target.apply(thisArg, argumentsList);
         }
-    
-        await fsp.readFile(file, "utf-8")
-          .then(result => 
-            fsp.writeFile(file.concat(".tmp"),
-              result.replace (
-                options.search,
-                to
+      })
+  
+      const logs = [];
+  
+      let counter = 0;
+      try {
+        await updateFileContent({
+          from: new Readable({
+            highWaterMark: 5,
+            read (size) {
+              for(let i = 0; i < size; i++) {
+                if(++counter > 10) {
+                  logs.push("I will destroy the Readable now");
+                  this.destroy();
+                  process.nextTick(() => writeStream.destroyed && logs.push(`nextTick: writeStream.destroyed: true`))
+                  return ;
+                } else {
+                  this.push(`${Math.random()},\n`);
+                }
+              }
+            }
+          }).once("close", () => logs.push("Event: readStream closed")),
+          to: writeStream,
+          separator: /,/,
+          join: "$",
+          search: /.$/,
+          replacement: () => ""
+        });
+      } catch (err) {
+        logs.push(`catch: Error ${err.message}`);
+      } finally {
+        assert.strictEqual(
+          [
+            "I will destroy the Readable now",
+            "Event: readStream closed",
+            "Proxy: writeStream.destroy.apply",
+            "nextTick: writeStream.destroyed: true",
+            "Event: writeStream errored",
+            "catch: Error Premature close"
+          ].join(" -> "),
+          logs.join(" -> ")
+        )
+      }
+    })
+  })
+
+  describe("try-on", () => {
+    it("can handle files larger than 16KiB", async () => {
+      const processFiles = 
+        (await import("../examples/helpers/process-files.mjs")).processFiles
+      ;
+
+      await resolveNodeDependencies(
+        "/node_modules/three/build/three.module.js",
+        "three"
+      );
+
+      async function resolveNodeDependencies (from, to) {
+        const handler = async file => {
+          if(/\.tmp$/.test(file))
+            return ;
+
+          const options = {
+            file,
+            search: new RegExp(
+              `${/\s*from\s*['"]/.source}(${from.replace(/\//g, "\/")})${/['"]/.source}`,
+              "g"
+            ),
+            replacement: to
+          }
+      
+          await fsp.readFile(file, "utf-8")
+            .then(result => 
+              fsp.writeFile(file.concat(".tmp"),
+                result.replace (
+                  options.search,
+                  to
+                )
               )
             )
-          )
-        
-        await updateFileContent(options);
+          
+          await updateFileContent(options);
 
-        await fsp.readFile(file, "utf-8")
-          .then(async result => {
-            const should_be = await fsp.readFile(file.concat(".tmp"), "utf-8");
-            assert.strictEqual(
-              should_be,
-              result
-            );
-          })
-      };
-    
-      await processFiles(join(__dirname, "./dump/"), handler);
-    }
-  })
+          await fsp.readFile(file, "utf-8")
+            .then(async result => {
+              const should_be = await fsp.readFile(file.concat(".tmp"), "utf-8");
+              assert.strictEqual(
+                should_be,
+                result
+              );
+            })
+        };
+        
+        if(!existsSync(join(__dirname, "./dump/")))
+          return ;
+        await processFiles(join(__dirname, "./dump/"), handler);
+      }
+    });
+  });
   
   //TODO: test encoding
 });

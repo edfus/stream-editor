@@ -1,6 +1,6 @@
 import { fstat } from "fs";
 import rw from "rw-stream";
-import { Transform } from "stream";
+import { Transform, pipeline } from "stream";
 import { StringDecoder } from 'string_decoder';
 
 async function process_stream(
@@ -8,11 +8,15 @@ async function process_stream(
   writeStream,
   { separator, callback, encoding, truncate }
 ) {
+
   let buffer = '';
   const decoder = new StringDecoder(encoding);
 
+  const kNuked = Symbol("nuked");
+
   const transformStream = (
     new Transform({
+      // decodeStrings: false, // Accept string input rather than Buffers //TODO
       transform(chunk, whatever, cb) {
         chunk = decoder.write(chunk);
 
@@ -20,6 +24,13 @@ async function process_stream(
         buffer = buffer.concat(parts[0]);
 
         if (parts.length === 1) {
+          if(this.maxLength && buffer.length > this.maxLength) //NOTE
+            return cb(
+              new Error(
+                "Maximum buffer length reached: ..."
+                    .concat(buffer.slice(buffer.length - 90, buffer.length))
+              )
+            )
           return cb();
         }
 
@@ -27,8 +38,27 @@ async function process_stream(
         parts[0] = buffer;
 
         for (let i = 0; i < parts.length - 1; i++) {
-          if (this.push(callback(parts[i], false), encoding) === false)
-            return cb(); // additional chunks of data can't be pushed
+          if (this.push(callback(parts[i], false), encoding) === false) {
+            /**
+             * push will return false when highWaterMark reached, signaling that
+             * additional chunks of data can't be pushed.
+             * ...but as Node.js will buffer any excess internally, and our output 
+             * data are in small amounts, there won't be any actual differences when
+             * no handling logic written out.
+             * 
+             * It might be the reason why Node didn't provide something like the drain 
+             * event for Writables in Transform Stream.
+             * 
+             * https://github.com/nodejs/help/issues/1791
+             * 
+             * https://github.com/nodejs/node/blob/040a27ae5f586305ee52d188e3654563f28e99ce/lib/internal/streams/pipeline.js#L132
+             */
+            if (this.destroyed || this[kNuked]) {
+              buffer = "";
+              decoder.end();
+              return cb();
+            }
+          }
         }
 
         buffer = parts[parts.length - 1];
@@ -37,7 +67,7 @@ async function process_stream(
       flush(cb) { // outro
         return cb(
           null,
-          callback(buffer, true)
+          callback(buffer.concat(decoder.end()), true)
         )
       }
     })
@@ -47,12 +77,11 @@ async function process_stream(
     let nuked = false;
     callback._nuke_ = () => {
       if (nuked)
-        return "nuked";
+        return Symbol.for("nuked");
       else nuked = true;
     }
 
     const push_func = transformStream.push;
-
 
     transformStream.push = function () {
       if (!nuked)
@@ -76,35 +105,37 @@ async function process_stream(
           this._flush = cb => {
             // flush has been called first, and here comes the end
             // so there is no need for resetting _transform now
-            return cb(null, buffer);
+            return cb(null, buffer.concat(decoder.end()));
           };
           push_func.apply(this, arguments);
           this.push = push_func.bind(this);
           return true;
         }
 
-        if (!this.destroyed) {
-          readStream.destroy(); // close that one piping in
-          this.end(); // and close the writable side (for not eating readStream's leftover)
+        // to truncate ↓
+        if (!this[kNuked]) {
+          this[kNuked] = true;
+          this.end(); // close the writable side
           push_func.apply(this, arguments); // push the last data
-          this.destroy(); // prevent further pushes, null will be pushed by Node.js
-          return false; // Readable.push will return false when additional chunks of data can't be pushed
+          push_func.call(this, null); // marking the end
+          return false;
         } else {
           // strictEqual(null, arguments[0]);
+          // strictEqual(1, arguments.length);
+          // https://github.com/nodejs/node/blob/51b43675067fafaad0abd7d4f62a6a5097db5044/lib/internal/streams/transform.js#L159
           return push_func.apply(this, arguments);
         }
       }
-
     }.bind(transformStream);
   }
 
   return new Promise((resolve, reject) => {
-    pipeline(
+    pipeline (
       readStream,
       transformStream,
       writeStream,
       err => err ? reject(err) : resolve()
-    );
+    ); // https://github.com/nodejs/node/blob/040a27ae5f586305ee52d188e3654563f28e99ce/lib/internal/streams/pipeline.js
   })
 }
 

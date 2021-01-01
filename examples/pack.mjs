@@ -48,6 +48,12 @@ const validation = join(root_directory, "./test");
           + `const { PassThrough, Readable } = stream;`
         },
         {
+          search: `import { Transform, pipeline } from "stream";`,
+          replacement: 
+          `const stream = require("stream");\n`
+          + `const { Transform, pipeline } = stream;`
+        },
+        {
           search: /(export)\s*\{.+?\};?/,
           replacement: "module.exports =",
           full_replacement: false
