@@ -122,14 +122,14 @@ describe("update files" ,() => {
         limit: 88
       });
     } catch (err) {
-      if(err.name === "Error") {
+      if(err.message.includes("EISDIR")) {
         assert.strictEqual (
-          "update-file-content: filepath ./ is invalid.",
+          "EISDIR: illegal operation on a directory, open './'",
           err.message
         );
       } else {
         assert.strictEqual (
-          "EISDIR: illegal operation on a directory, open './'",
+          "update-file-content: filepath ./ is invalid.",
           err.message
         );
       }
