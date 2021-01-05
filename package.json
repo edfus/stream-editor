@@ -1,6 +1,6 @@
 {
   "name": "update-file-content",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "A simple utility for executing RegEx replacement on files, powered by stream.",
   "scripts": {
     "example": "node examples/update-sw-content.mjs",

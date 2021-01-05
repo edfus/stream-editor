@@ -42,10 +42,10 @@ const validation = join(root_directory, "./test");
           + `const { process_stream, rw_stream } = streams;`
         },
         {
-          search: `import { PassThrough, Readable } from "stream";`,
+          search: `import { Readable, Writable } from "stream";`,
           replacement: 
           `const stream = require("stream");\n`
-          + `const { PassThrough, Readable } = stream;`
+          + `const { Readable, Writable } = stream;`
         },
         {
           search: `import { Transform, pipeline } from "stream";`,
