@@ -1,4 +1,4 @@
-import { process_stream, rw_stream } from "./process.mjs";
+import { process_stream, rw_stream } from "./streams.mjs";
 import { Readable, Writable } from "stream";
 import { WriteStream } from "fs";
 
