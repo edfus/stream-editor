@@ -121,7 +121,7 @@ async function process_stream(
 
           readStream.push(null);
           // starts from v14.0.0, The pipeline will wait for the 'close' event
-          // for streams created with the emitClose option.
+          // for non-duplex & non-legacy streams created with the emitClose option.
           // so marking the end of the readStream manually is required.
           
           return false;
