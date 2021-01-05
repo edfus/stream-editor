@@ -157,8 +157,8 @@ async function process_stream(
    */
 
   /**
-   * BUT IN PRACTICE, pipeline in v15.5.0 can handle file system streams well.
-   * well, contradictory sentences.
+   * BUT IN PRACTICE, pipeline in v15.5.0 is coping well with file system streams
+   * That's contradictory...
    * 
    * https://github.com/nodejs/node/blob/040a27ae5f586305ee52d188e3654563f28e99ce/lib/internal/streams/pipeline.js
    */
