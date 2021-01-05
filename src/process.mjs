@@ -120,7 +120,8 @@ async function process_stream(
           push_func.call(this, null); // it's the end
 
           readStream.push(null);
-          // starts from v14.0.0 , The pipeline will wait for the 'close' event
+          // starts from v14.0.0, The pipeline will wait for the 'close' event
+          // for streams created with the emitClose option.
           // so marking the end of the readStream manually is required.
           
           return false;
@@ -142,26 +143,6 @@ async function process_stream(
       err => err ? reject(err) : resolve()
     );
   });
-  /**
-   * v14.0.0
-   * The pipeline(..., cb) will wait for the 'close' event before invoking the callback.
-   * The implementation tries to detect legacy streams and only apply this behavior to streams which are expected to emit 'close'.
-   */
-
-  /**
-   * https://nodejs.org/api/fs.html#fs_fs_createreadstream_path_options
-   * https://nodejs.org/api/fs.html#fs_fs_createwritestream_path_options
-   * By default, the stream will not emit a 'close' event after it has been destroyed.
-   * This is the opposite of the default for other Readable streams.
-   * Set the emitClose option to true to change this behavior.
-   */
-
-  /**
-   * BUT IN PRACTICE, pipeline in v15.5.0 is coping well with file system streams
-   * That's contradictory...
-   * 
-   * https://github.com/nodejs/node/blob/040a27ae5f586305ee52d188e3654563f28e99ce/lib/internal/streams/pipeline.js
-   */
 }
 
 

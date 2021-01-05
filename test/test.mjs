@@ -305,7 +305,6 @@ describe("update files" ,() => {
       const writeStream = 
         createWriteStream(join(__dirname, `./dump${dump_[1]}`))
             // .once("error", () => logs.push("Event: writeStream errored"))
-            // .once("close", () => logs.push("Event: writeStream closed"))
             // see https://github.com/edfus/update-file-content/runs/1641959273
       ;
   
