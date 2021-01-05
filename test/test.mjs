@@ -100,43 +100,31 @@ describe("update files" ,() => {
   });
 
   it("should check arguments", async () => {
-    try {
-      await updateFileContent({
+    await assert.rejects(
+      () => updateFileContent({
         file: "",
         search: /(.|\n)*/,
         replacement: () => "",
         limit: 88
-      });
-    } catch (err) {
-      assert.strictEqual (
-        "updateFileContent: options.file is invalid.",
-        err.message
-      )
-    }
+      }),
+      {
+        name: "TypeError",
+        message: "updateFileContent: options.file is invalid."
+      }
+    );
 
-    try {
-      await updateFileContent({
+    await assert.rejects(
+      () => updateFileContent({
         file: "./",
         search: /(.|\n)*/,
         replacement: () => "",
         limit: 88
-      });
-    } catch (err) {
-      if(err.message.includes("EISDIR")) {
-        assert.strictEqual (
-          "EISDIR: illegal operation on a directory, open './'",
-          err.message
-        );
-      } else {
-        assert.strictEqual (
-          "update-file-content: filepath ./ is invalid.",
-          err.message
-        );
-      }
-    }
+      }),
+      /(^EISDIR)|(filepath \.\/ is invalid\.$)/
+    );
 
-    try {
-      await updateFileContent({
+    await assert.rejects(
+      () => updateFileContent({
         file: "./",
         replace: [
           {
@@ -150,16 +138,15 @@ describe("update files" ,() => {
         ],
         join: part => part === "" ? "" : part.concat("\n"),
         limit: 88
-      });
-    } catch (err) {
-      assert.strictEqual (
-        "update-file-content: received non-function full replacement $1 while limit being specified",
-        err.message
-      )
-    }
+      }),
+      {
+        name: "TypeError",
+        message: "update-file-content: received non-function full replacement $1 while limit being specified"
+      } 
+    );
 
-    try {
-      await updateFileContent({
+    await assert.rejects(
+      () => updateFileContent({
         file: "./",
         replace: [
           {
@@ -173,13 +160,12 @@ describe("update files" ,() => {
         ],
         join: null,
         limit: 88
-      });
-    } catch (err) {
-      assert.strictEqual (
-        "update-file-content: options.join null is invalid.",
-        err.message
-      )
-    }
+      }),
+      {
+        name: "TypeError",
+        message: "update-file-content: options.join null is invalid."
+      }
+    )
   });
 
   describe("truncation & limitation", () => {
@@ -290,7 +276,7 @@ describe("update files" ,() => {
   });
 
   describe("corner cases", () => {
-    xit("can handle empty content", async () => {
+    xit("can handle empty content", async () => { //NOTE: Error: EBADF: bad file descriptor, read
       try {
         await updateFileContent({
           file: join(__dirname, `./dump${dump$[3]}`),
@@ -318,7 +304,9 @@ describe("update files" ,() => {
       // streams by themselves can only propagate errors up but not down.
       const writeStream = 
         createWriteStream(join(__dirname, `./dump${dump_[1]}`))
-            .once("error", () => logs.push("Event: writeStream errored"))
+            // .once("error", () => logs.push("Event: writeStream errored"))
+            // .once("close", () => logs.push("Event: writeStream closed"))
+            // see https://github.com/edfus/update-file-content/runs/1641959273
       ;
   
       writeStream.destroy = new Proxy(writeStream.destroy, {
@@ -364,7 +352,7 @@ describe("update files" ,() => {
             "Event: readStream closed",
             "Proxy: writeStream.destroy.apply",
             "nextTick: writeStream.destroyed: true",
-            "Event: writeStream errored",
+            // "Event: writeStream errored",
             "catch: Error Premature close"
           ].join(" -> "),
           logs.join(" -> ")
