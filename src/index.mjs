@@ -1,5 +1,5 @@
 import { process_stream, rw_stream } from "./process.mjs";
-import { PassThrough, Readable } from "stream";
+import { Readable, Writable } from "stream";
 import { WriteStream } from "fs";
 
 function _getReplaceFunc ( options ) {
@@ -193,15 +193,17 @@ async function updateFiles ( options ) {
   const truncate = "truncate" in options ? options.truncate : false;
 
   if(validate(options.files, Array) && validate(...options.files, ".")) {
-    return options.file.map(file => 
-      rw_stream (
-        file,
-        {
-          separator,
-          callback, 
-          encoding,
-          truncate
-        }
+    return Promise.all(
+      options.file.map(file => 
+        rw_stream (
+          file,
+          {
+            separator,
+            callback, 
+            encoding,
+            truncate
+          }
+        )
       )
     );
   } else {
@@ -211,18 +213,42 @@ async function updateFiles ( options ) {
     // superset Readable instead of ReadStream
     if(validate(readStream, Readable) && validate(dests, Array)) {
       if(validate(...dests, WriteStream)) {
-        return dests.map(writeStream => {
-          process_stream (
-            readStream.pipe(new PassThrough()), 
-            writeStream,
-            {
-              separator, 
-              callback,
-              encoding,
-              truncate
+        return process_stream (
+          readStream,
+          new Writable({
+            async write (chunk, encoding, cb) {
+              await Promise.all(
+                dests.map(writeStream => 
+                  new Promise((resolve, reject) => {
+                    writeStream.write(chunk, encoding, resolve)
+                  }) // .write should never return false
+                )
+              );
+              return cb();
+            },
+
+            destroy (err, cb) {
+              dests.forEach(
+                writeStream => writeStream.destroy(err)
+              );
+              return cb();
+            },
+            autoDestroy: true, // Default: true.
+
+            final (cb) {
+              dests.forEach(
+                writeStream => writeStream.end()
+              );
+              return cb();
             }
-          )
-        });
+          }),
+          {
+            separator, 
+            callback,
+            encoding,
+            truncate
+          }
+        ) 
       } else {
         throw new TypeError("updateFiles: options.(writeStream|to) is not an instance of Array<WriteStream>");
       }  

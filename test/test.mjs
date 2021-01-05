@@ -52,7 +52,7 @@ describe("update files" ,() => {
     dump$.forEach(id => assert.ok(existsSync(join(__dirname, `./dump${id}`))));
   });
 
-  it("should have replaced /dum(b)/i to dumpling (while preserve dum's case)", async () => {
+  it("should have replaced /dum(b)/i to dumpling (while preserving dum's case)", async () => {
     await fsp.readFile(join(__dirname, `./dump${dump$[0]}`), "utf-8")
       .then(result => {
         assert.strictEqual(
