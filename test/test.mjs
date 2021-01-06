@@ -45,7 +45,7 @@ describe("update files" ,() => {
         createWriteStream(join(__dirname, `./dump${id}`))
       ),
       separator: /(?=,\n)/,
-      search: /dum(b)/i,
+      match: /dum(b)/i,
       replacement: "pling",
       encoding: "utf-8"
     });
@@ -80,7 +80,7 @@ describe("update files" ,() => {
     await updateFileContent({
       file: join(__dirname, `./dump${dump$[1]}`),
       replace: [{
-        search: /(([^^]){13})/,
+        match: /(([^^]){13})/,
         replacement: "%%%%%%2%%%%%%", // 13
         limit: 2
       }],
@@ -117,7 +117,7 @@ describe("update files" ,() => {
     await assert.rejects(
       () => updateFileContent({
         file: "./",
-        search: /(.|\n)*/,
+        match: /(.|\n)*/,
         replacement: () => "",
         limit: 88
       }),
@@ -155,7 +155,7 @@ describe("update files" ,() => {
             replacement: "$1"
           },
           {
-            search: /[a-z]{5}.{5}/i,
+            match: /[a-z]{5}.{5}/i,
             replacement: "-"
           },
         ],
@@ -481,7 +481,5 @@ describe("update files" ,() => {
       }
     });
   });
-  
-  //TODO: test encoding
 });
 

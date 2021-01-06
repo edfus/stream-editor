@@ -7,9 +7,11 @@ function _getReplaceFunc ( options ) {
   let global_limit = 0;
   let global_counter = 0;
 
-  if(options.search && "replacement" in options) { // will be validated in replace.map
+  const search = options.search || options.match;
+
+  if(search && "replacement" in options) { // will be validated in replace.map
     replace.push({
-      search: options.search,
+      search: search,
       replacement: options.replacement,
       limit: options.limit
     });
@@ -58,7 +60,10 @@ function _getReplaceFunc ( options ) {
     return EOF ? part : join(part);
   };
   
-  replace = replace.map(({search, replacement, full_replacement, limit}) => {
+  replace = replace.map(({match, search, replacement, full_replacement, limit}) => {
+    if(match && !search)
+      search = match;
+
     if(!is(search, RegExp, "") || !is(replacement, Function, ""))
       throw new TypeError("update-file-content: !is(search, RegExp, \"\") || !is(replacement, Function, \"\")");
     
