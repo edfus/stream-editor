@@ -2,8 +2,9 @@ import { updateFileContent, updateFiles } from "../src/index.mjs";
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { Readable } from "stream";
-import { createWriteStream, existsSync, promises as fsp } from "fs";
+import { createReadStream, createWriteStream, existsSync, promises as fsp } from "fs";
 import assert from "assert";
+import { StringDecoder } from "string_decoder";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -274,6 +275,73 @@ describe("update files" ,() => {
               );
     })
   });
+
+  describe("transcoding", () => {
+    it("gbk to utf8 buffer", async () => {
+      await updateFileContent({
+        from: createReadStream(join(__dirname, "./gbk.txt")),
+        to: createWriteStream(join(__dirname, "./dump-utf8.txt")),
+        decodeBuffers: "gbk"
+      });
+
+      await fsp.readFile(join(__dirname, "./dump-utf8.txt"), "utf-8")
+              .then(result => {
+                assert.strictEqual(
+                  true,
+                  /^★　魔法与红梦/.test(result)
+                );
+              });
+    });
+
+    it("gbk to hex with HWM", async () => {
+      const fileHandler = await fsp.open(join(__dirname, "./gbk.txt"), "r")
+      await updateFileContent({
+        from: new Readable({
+          highWaterMark: 3,
+          async read (size) {
+            try {
+              const chunk = Buffer.alloc(size);
+              const { bytesRead } = await fileHandler.read(chunk, 0, size, null);
+  
+              return (
+                !bytesRead
+                ? this.push(null)
+                : this.push(chunk.slice(0, bytesRead))
+              );
+            } catch (err) {
+              this.destroy(err);
+            }
+          },
+          async destroy (err, cb) {
+            await fileHandler.close();
+            cb();
+            throw err;
+          }
+        }),
+        to: createWriteStream(join(__dirname, "./dump-hex.txt")),
+        decodeBuffers: "gbk",
+        encoding: "hex"
+      });
+
+      await fsp.readFile(join(__dirname, "./dump-hex.txt"), "utf8")
+              .then(result => {
+                const should_be_hex = "e29885e38080e9ad94e6b3";
+                const should_be_str = "★　魔法与红梦化成的存在　???　雾雨魔理沙";
+
+                assert.strictEqual(
+                  should_be_hex,
+                  result.slice(0, should_be_hex.length)
+                );
+
+                assert.strictEqual(
+                  should_be_str,
+                  new StringDecoder("utf-8")
+                        .write(Buffer.from(result, "hex"))
+                        .slice(0, should_be_str.length) 
+                );
+              });
+    })
+  })
 
   describe("corner cases", () => {
     xit("can handle empty content", async () => { //NOTE: Error: EBADF: bad file descriptor, read

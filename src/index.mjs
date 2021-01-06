@@ -1,6 +1,5 @@
 import { process_stream, rw_stream } from "./streams.mjs";
 import { Readable, Writable } from "stream";
-import { WriteStream } from "fs";
 
 function _getReplaceFunc ( options ) {
   let replace = [];
@@ -59,8 +58,6 @@ function _getReplaceFunc ( options ) {
     return EOF ? part : join(part);
   };
   
-  /**/ const _nuke_ = () => callback._nuke_(); /**/
-
   replace = replace.map(({search, replacement, full_replacement, limit}) => {
     if(!is(search, RegExp, "") || !is(replacement, Function, ""))
       throw new TypeError("update-file-content: !is(search, RegExp, \"\") || !is(replacement, Function, \"\")");
@@ -123,18 +120,18 @@ function _getReplaceFunc ( options ) {
         let counter = 0;
         const func_ptr = rule.replacement;
   
-        rule.replacement = function (_nuke_, ...args) {
+        rule.replacement = function (notify, ...args) {
           if(
               ( global_limit && ++global_counter >= global_limit )
               || ++counter >= limit
             )
-            if(_nuke_() === Symbol.for("nuked"))
+            if(notify() === Symbol.for("notified"))
               return args[0]; // return the whole unmodified match string
   
           return func_ptr.apply(this, args);
-        }.bind(rule, _nuke_);
+        }.bind(rule, () => callback._cb_limit());
   
-        callback.with_limit = true;
+        callback.withLimit = true;
         callback.truncate = options.truncate;
       } else {
         throw new TypeError("update-file-content: received non-function full replacement "
@@ -150,9 +147,10 @@ function _getReplaceFunc ( options ) {
 }
 
 async function updateFileContent( options ) {
-  const callback = _getReplaceFunc(options);
+  const replaceFunc = _getReplaceFunc(options);
   const separator = "separator" in options ? options.separator : /(?=\r?\n)/; // NOTE
-  const encoding = options.encoding || "utf8";
+  const encoding = options.encoding || null;
+  const decodeBuffers = options.decodeBuffers || "utf8";
   const truncate = "truncate" in options ? options.truncate : false;
 
   if("file" in options) {
@@ -161,8 +159,9 @@ async function updateFileContent( options ) {
           options.file,
           {
             separator,
-            callback,
+            processFunc: replaceFunc,
             encoding,
+            decodeBuffers,
             truncate
           }
         );
@@ -171,14 +170,15 @@ async function updateFileContent( options ) {
     const readStream = options.readStream || options.from;
     const writeStream = options.writeStream || options.to;
 
-    if(validate(readStream, Readable) && validate(writeStream, WriteStream))
+    if(validate(readStream, Readable) && validate(writeStream, Writable))
       return process_stream (
         readStream, 
         writeStream,
         {
           separator, 
-          callback, 
+          processFunc: replaceFunc, 
           encoding,
+          decodeBuffers,
           truncate
         }
       );
@@ -187,9 +187,10 @@ async function updateFileContent( options ) {
 }
 
 async function updateFiles ( options ) {
-  const callback = _getReplaceFunc(options);
+  const replaceFunc = _getReplaceFunc(options);
   const separator = "separator" in options ? options.separator : /(?=\r?\n)/;
-  const encoding = options.encoding || "utf8";
+  const encoding = options.encoding || null;
+  const decodeBuffers = options.decodeBuffers || "utf8";
   const truncate = "truncate" in options ? options.truncate : false;
 
   if(validate(options.files, Array) && validate(...options.files, ".")) {
@@ -199,8 +200,9 @@ async function updateFiles ( options ) {
           file,
           {
             separator,
-            callback, 
+            processFunc: replaceFunc, 
             encoding,
+            decodeBuffers,
             truncate
           }
         )
@@ -212,7 +214,7 @@ async function updateFiles ( options ) {
 
     // superset Readable instead of ReadStream
     if(validate(readStream, Readable) && validate(dests, Array)) {
-      if(validate(...dests, WriteStream)) {
+      if(validate(...dests, Writable)) {
         return process_stream (
           readStream,
           new Writable({
@@ -244,13 +246,14 @@ async function updateFiles ( options ) {
           }),
           {
             separator, 
-            callback,
+            processFunc: replaceFunc,
             encoding,
+            decodeBuffers,
             truncate
           }
         ) 
       } else {
-        throw new TypeError("updateFiles: options.(writeStream|to) is not an instance of Array<WriteStream>");
+        throw new TypeError("updateFiles: options.(writeStream|to) is not an instance of Array<Writable>");
       }  
     }
       
