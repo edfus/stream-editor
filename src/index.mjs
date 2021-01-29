@@ -192,7 +192,6 @@ async function updateFileContent( options ) {
 }
 
 async function updateFiles ( options ) {
-  const replaceFunc = _getReplaceFunc(options);
   const separator = "separator" in options ? options.separator : /(?=\r?\n)/;
   const encoding = options.encoding || null;
   const decodeBuffers = options.decodeBuffers || "utf8";
@@ -205,7 +204,7 @@ async function updateFiles ( options ) {
           file,
           {
             separator,
-            processFunc: replaceFunc, 
+            processFunc: _getReplaceFunc(options), 
             encoding,
             decodeBuffers,
             truncate
@@ -234,7 +233,7 @@ async function updateFiles ( options ) {
               passThrough,
               {
                 separator, 
-                processFunc: replaceFunc,
+                processFunc: _getReplaceFunc(options),
                 encoding,
                 decodeBuffers,
                 truncate
@@ -305,7 +304,7 @@ async function updateFiles ( options ) {
           }),
           {
             separator, 
-            processFunc: replaceFunc,
+            processFunc: _getReplaceFunc(options),
             encoding,
             decodeBuffers,
             truncate
