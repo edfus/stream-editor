@@ -1,0 +1,18 @@
+rules:
+  - DOMAIN-SUFFIX,netflix.com,{UPDATE-group-name}
+  - DOMAIN-SUFFIX,netflix.net,{UPDATE-group-name}
+  - DOMAIN-SUFFIX,nflxext.com,{UPDATE-group-name}
+  - DOMAIN-SUFFIX,nflximg.com,{UPDATE-group-name}
+  - DOMAIN-SUFFIX,nflximg.net,{UPDATE-group-name}
+  - DOMAIN-SUFFIX,nflxso.net,{UPDATE-group-name}
+  - DOMAIN-SUFFIX,nflxvideo.net,{UPDATE-group-name}
+  - DOMAIN-SUFFIX,netflixdnstest0.com,{UPDATE-group-name}
+  - DOMAIN-SUFFIX,netflixdnstest1.com,{UPDATE-group-name}
+  - DOMAIN-SUFFIX,netflixdnstest2.com,{UPDATE-group-name}
+  - DOMAIN-SUFFIX,netflixdnstest3.com,{UPDATE-group-name}
+  - DOMAIN-SUFFIX,netflixdnstest4.com,{UPDATE-group-name}
+  - DOMAIN-SUFFIX,netflixdnstest5.com,{UPDATE-group-name}
+  - DOMAIN-SUFFIX,netflixdnstest6.com,{UPDATE-group-name}
+  - DOMAIN-SUFFIX,netflixdnstest7.com,{UPDATE-group-name}
+  - DOMAIN-SUFFIX,netflixdnstest8.com,{UPDATE-group-name}
+  - DOMAIN-SUFFIX,netflixdnstest9.com,{UPDATE-group-name}

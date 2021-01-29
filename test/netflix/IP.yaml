@@ -1,0 +1,10 @@
+rules:
+  - IP-CIDR,23.246.0.0/18,{UPDATE-group-name},no-resolve
+  - IP-CIDR,37.77.184.0/21,{UPDATE-group-name},no-resolve
+  - IP-CIDR,45.57.0.0/17,{UPDATE-group-name},no-resolve
+  - IP-CIDR,64.120.128.0/17,{UPDATE-group-name},no-resolve
+  - IP-CIDR,66.197.128.0/17,{UPDATE-group-name},no-resolve
+  - IP-CIDR,108.175.32.0/20,{UPDATE-group-name},no-resolve
+  - IP-CIDR,192.173.64.0/18,{UPDATE-group-name},no-resolve
+  - IP-CIDR,198.38.96.0/19,{UPDATE-group-name},no-resolve
+  - IP-CIDR,198.45.48.0/20,{UPDATE-group-name},no-resolve

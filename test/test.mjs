@@ -20,6 +20,75 @@ describe("update files" ,() => {
     "-premature"
   ];
 
+  it("should check arguments", async () => {
+    await assert.rejects(
+      () => updateFileContent({
+        file: "",
+        search: /(.|\n)*/,
+        replacement: () => "",
+        limit: 88
+      }),
+      {
+        name: "TypeError",
+        message: "updateFileContent: options.file is invalid."
+      }
+    );
+
+    await assert.rejects(
+      () => updateFileContent({
+        file: "./",
+        match: /(.|\n)*/,
+        replacement: () => "",
+        limit: 88
+      }),
+      /(^.*?EISDIR)|(filepath \.\/ is invalid\.$)/
+    );
+
+    await assert.rejects(
+      () => updateFileContent({
+        file: "./",
+        replace: [
+          {
+            search: /((.|\n)*)/,
+            replacement: "$1"
+          },
+          {
+            search: /[a-z]{5}.{5}/i,
+            replacement: "-"
+          },
+        ],
+        join: part => part === "" ? "" : part.concat("\n"),
+        limit: 88
+      }),
+      {
+        name: "TypeError",
+        message: "update-file-content: received non-function full replacement $1 while limit being specified"
+      } 
+    );
+
+    await assert.rejects(
+      () => updateFileContent({
+        file: "./",
+        replace: [
+          {
+            search: /((.|\n)*)/,
+            replacement: "$1"
+          },
+          {
+            match: /[a-z]{5}.{5}/i,
+            replacement: "-"
+          },
+        ],
+        join: null,
+        limit: 88
+      }),
+      {
+        name: "TypeError",
+        message: "update-file-content: options.join null is invalid."
+      }
+    )
+  });
+
   it("should pipe one Readable to multiple dumps", async () => {
     let counter = 0;
 
@@ -100,74 +169,25 @@ describe("update files" ,() => {
             })
   });
 
-  it("should check arguments", async () => {
-    await assert.rejects(
-      () => updateFileContent({
-        file: "",
-        search: /(.|\n)*/,
-        replacement: () => "",
-        limit: 88
-      }),
-      {
-        name: "TypeError",
-        message: "updateFileContent: options.file is invalid."
-      }
-    );
-
-    await assert.rejects(
-      () => updateFileContent({
-        file: "./",
-        match: /(.|\n)*/,
-        replacement: () => "",
-        limit: 88
-      }),
-      /(^.*?EISDIR)|(filepath \.\/ is invalid\.$)/
-    );
-
-    await assert.rejects(
-      () => updateFileContent({
-        file: "./",
-        replace: [
-          {
-            search: /((.|\n)*)/,
-            replacement: "$1"
-          },
-          {
-            search: /[a-z]{5}.{5}/i,
-            replacement: "-"
-          },
-        ],
-        join: part => part === "" ? "" : part.concat("\n"),
-        limit: 88
-      }),
-      {
-        name: "TypeError",
-        message: "update-file-content: received non-function full replacement $1 while limit being specified"
-      } 
-    );
-
-    await assert.rejects(
-      () => updateFileContent({
-        file: "./",
-        replace: [
-          {
-            search: /((.|\n)*)/,
-            replacement: "$1"
-          },
-          {
-            match: /[a-z]{5}.{5}/i,
-            replacement: "-"
-          },
-        ],
-        join: null,
-        limit: 88
-      }),
-      {
-        name: "TypeError",
-        message: "update-file-content: options.join null is invalid."
-      }
-    )
-  });
+  it("should update and combine multiple Readable into one Writable", async () => {
+    await updateFiles({
+      from: 
+        await fsp.readdir(join(__dirname, "./netflix"), { withFileTypes: true })
+          .then(dirents => 
+            dirents.filter(dirent => {
+              if(dirent.isFile() && dirent.name.endsWith(".yaml"))
+                return true;
+              else return false;
+           })
+           .map(({ name }) => createReadStream(join(__dirname, "./netflix", name)))
+          )
+        ,
+      to: createWriteStream(join(__dirname, "./netflix/dump-merge-result")),
+      contentJoin: "\n\n",
+      search: "{UPDATE-group-name}",
+      replacement: "NETFLIX 🎥"
+    });
+  })
 
   describe("truncation & limitation", () => {
     it("truncating the rest when limitations reached", async () => {

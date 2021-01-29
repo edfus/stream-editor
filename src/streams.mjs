@@ -3,7 +3,7 @@ import { pipeline } from "stream";
 import rw from "rw-stream";
 import { Transform, NukableTransform } from "./transform.mjs";
 
-async function process_stream(
+async function process_stream (
   readStream,
   writeStream,
   { separator, processFunc, encoding, decodeBuffers, truncate }
@@ -48,7 +48,7 @@ async function process_stream(
       readStream,
       transformStream,
       writeStream,
-      err => err ? reject(err) : resolve()
+      err => err ? reject(err) : resolve(writeStream)
     );
   });
 }
@@ -63,7 +63,8 @@ async function rw_stream(filepath, options) {
         fstat(fd, (err, status) => err ? reject(err) : resolve(status.isFile()))
     ) // fs.open won't throw a complaint, so it's our duty.
   )
-    return process_stream(readStream, writeStream, options);
+    return process_stream(readStream, writeStream, options)
+            .then(() => void 0); // not leaking reference to local writeStream
   else
     throw new Error(`update-file-content: filepath ${filepath} is invalid.`);
 }
