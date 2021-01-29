@@ -185,8 +185,35 @@ describe("update files" ,() => {
       to: createWriteStream(join(__dirname, "./netflix/dump-merge-result")),
       contentJoin: "\n\n",
       search: "{UPDATE-group-name}",
-      replacement: "NETFLIX 🎥"
+      replacement: "NETFLIX 🎥",
+      separator: /\r?\n/,
+      join: "\n",
+      limit: 3,
+      truncate: true
     });
+
+    await fsp.readFile(join(__dirname, "./netflix/dump-merge-result"), "utf-8")
+        .then(result => {
+          assert.strictEqual(
+              [
+                "rules:",
+                "  - DOMAIN-SUFFIX,netflix.com,NETFLIX 🎥",
+                "  - DOMAIN-SUFFIX,netflix.net,NETFLIX 🎥",
+                "  - DOMAIN-SUFFIX,nflxext.com,NETFLIX 🎥"
+              ].join("\n").concat("\n")
+            .concat(
+              "\n\n"
+            ).concat(
+              [
+                "rules:",
+                "  - IP-CIDR,23.246.0.0/18,NETFLIX 🎥,no-resolve",
+                "  - IP-CIDR,37.77.184.0/21,NETFLIX 🎥,no-resolve",
+                "  - IP-CIDR,45.57.0.0/17,NETFLIX 🎥,no-resolve"
+              ].join("\n").concat("\n")
+            ),
+            result
+          );
+        })
   })
 
   describe("truncation & limitation", () => {
