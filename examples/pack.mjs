@@ -32,10 +32,10 @@ const validation = join(root_directory, "./test");
           + `const { process_stream, rw_stream } = streams;`
         },
         {
-          search: `import { Readable, Writable } from "stream";`,
+          search: `import { PassThrough, Readable, Writable } from "stream";`,
           replacement: 
           `const stream = require("stream");\n`
-          + `const { Readable, Writable } = stream;`
+          + `const { PassThrough, Readable, Writable } = stream;`
         },
         {
           search: `import { Transform, NukableTransform } from "./transform.mjs";`,

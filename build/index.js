@@ -1,7 +1,7 @@
 const streams = require("./streams.js");
 const { process_stream, rw_stream } = streams;
 const stream = require("stream");
-const { Readable, Writable } = stream;
+const { PassThrough, Readable, Writable } = stream;
 
 function _getReplaceFunc ( options ) {
   let replace = [];
@@ -9,9 +9,11 @@ function _getReplaceFunc ( options ) {
   let global_limit = 0;
   let global_counter = 0;
 
-  if(options.search && "replacement" in options) { // will be validated in replace.map
+  const search = options.search || options.match;
+
+  if(search && "replacement" in options) { // will be validated in replace.map
     replace.push({
-      search: options.search,
+      search: search,
       replacement: options.replacement,
       limit: options.limit
     });
@@ -60,7 +62,10 @@ function _getReplaceFunc ( options ) {
     return EOF ? part : join(part);
   };
   
-  replace = replace.map(({search, replacement, full_replacement, limit}) => {
+  replace = replace.map(({match, search, replacement, full_replacement, limit}) => {
+    if(match && !search)
+      search = match;
+
     if(!is(search, RegExp, "") || !is(replacement, Function, ""))
       throw new TypeError("update-file-content: !is(search, RegExp, \"\") || !is(replacement, Function, \"\")");
     
@@ -189,7 +194,6 @@ async function updateFileContent( options ) {
 }
 
 async function updateFiles ( options ) {
-  const replaceFunc = _getReplaceFunc(options);
   const separator = "separator" in options ? options.separator : /(?=\r?\n)/;
   const encoding = options.encoding || null;
   const decodeBuffers = options.decodeBuffers || "utf8";
@@ -202,7 +206,7 @@ async function updateFiles ( options ) {
           file,
           {
             separator,
-            processFunc: replaceFunc, 
+            processFunc: _getReplaceFunc(options), 
             encoding,
             decodeBuffers,
             truncate
@@ -211,11 +215,65 @@ async function updateFiles ( options ) {
       )
     );
   } else {
-    const readStream = options.readStream || options.from;
-    const dests = options.writeStream || options.to;
+    const from = options.readStream || options.from;
+    const to = options.writeStream || options.to;
 
-    // superset Readable instead of ReadStream
-    if(validate(readStream, Readable) && validate(dests, Array)) {
+    if(validate(from, Array) && validate(to, Writable)) {
+      const sources = from;
+      const destination = to;
+      const contentJoin = options.contentJoin || "";
+
+      if(validate(...sources, Readable)) {
+        const resultStreams = [];
+        
+        const resultPromises = sources.map ( //
+          src => {
+            const passThrough = new PassThrough();
+            resultStreams.push(passThrough);
+            return process_stream (
+              src,
+              passThrough,
+              {
+                separator, 
+                processFunc: _getReplaceFunc(options),
+                encoding,
+                decodeBuffers,
+                truncate
+              }
+            );
+          }
+        );
+
+        const lastIndex = resultStreams.length - 1;
+
+        try {
+          await resultStreams.reduce(async (frontWorkDone, resultStream, i) => {
+            await frontWorkDone;
+            await new Promise((resolve, reject) => 
+              resultStream
+                .once("error", reject)
+                .once("end", () => {
+                  if(i < lastIndex)  //NOTE: the encoding option
+                    destination.write(contentJoin, encoding, resolve);
+                  else destination.end(resolve);
+                })
+                .pipe(destination, { end: false })
+            )
+          }, void 0);
+          // If initialValue is not provided, reduce() will skip the first index.
+        } catch (err) {
+          resultStreams.forEach(stream => stream.destroy(err));
+          destination.end(() => { throw err });
+        }
+
+        return destination;
+      } else {
+        throw new TypeError("updateFiles: options.(readStream|from) is not an instance of Array<Readable>");
+      }
+    } else if(validate(from, Readable) && validate(to, Array)) {
+      const readStream = from;
+      const dests = to;
+
       if(validate(...dests, Writable)) {
         return process_stream (
           readStream,
@@ -248,7 +306,7 @@ async function updateFiles ( options ) {
           }),
           {
             separator, 
-            processFunc: replaceFunc,
+            processFunc: _getReplaceFunc(options),
             encoding,
             decodeBuffers,
             truncate
@@ -256,7 +314,7 @@ async function updateFiles ( options ) {
         ) 
       } else {
         throw new TypeError("updateFiles: options.(writeStream|to) is not an instance of Array<Writable>");
-      }  
+      }
     }
       
     throw new Error("updateFiles: incorrect options.");
