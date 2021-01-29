@@ -175,11 +175,12 @@ describe("update files" ,() => {
         await fsp.readdir(join(__dirname, "./netflix"), { withFileTypes: true })
           .then(dirents => 
             dirents.filter(dirent => {
-              if(dirent.isFile() && dirent.name.endsWith(".yaml"))
-                return true;
-              else return false;
-           })
-           .map(({ name }) => createReadStream(join(__dirname, "./netflix", name)))
+                if(dirent.isFile() && dirent.name.endsWith(".yaml"))
+                  return true;
+                else return false;
+            })
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map(({ name }) => createReadStream(join(__dirname, "./netflix", name)))
           )
         ,
       to: createWriteStream(join(__dirname, "./netflix/dump-merge-result")),
