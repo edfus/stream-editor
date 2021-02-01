@@ -41,7 +41,7 @@ describe("update files" ,() => {
         replacement: () => "",
         limit: 88
       }),
-      /(^.*?EISDIR)|(filepath \.\/ is invalid\.$)/
+      /EISDIR: illegal operation on a directory/
     );
 
     await assert.rejects(

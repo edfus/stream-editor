@@ -66,9 +66,6 @@
     "url": "git+https://github.com/edfus/update-file-content.git"
   },
   "license": "ISC",
-  "dependencies": {
-    "rw-stream": "^0.3.3"
-  },
   "devDependencies": {
     "@types/mocha": "^8.2.0"
   }
