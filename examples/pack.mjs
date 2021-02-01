@@ -87,6 +87,11 @@ const validation = join(root_directory, "./test");
               replacement: "const $1 = require(\"$2\").$1;",
               full_replacement: true
             },
+            { // dynamic import
+              search: /\(await import\((.+?)\)\)/,
+              replacement: "require($1)",
+              full_replacement: true
+            },
             {
               search: /(export)\s*\{.+?\};?/,
               replacement: "module.exports =",

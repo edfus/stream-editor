@@ -35,6 +35,26 @@ describe("update files" ,() => {
     );
 
     await assert.rejects(
+      () => updateFiles({
+        from: [],
+        to: {},
+        search: /(.|\n)*/,
+        replacement: () => ""
+      }),
+      {
+        name: "Error",
+        message:
+          'updateFiles: incorrect options.\n'
+          +     'Receiving: {\n'
+          +     '  from: [],\n'
+          +     '  to: {},\n'
+          +     '  search: \u001b[31m/(.|\\n)*/\u001b[39m,\n'
+          +     '  replacement: \u001b[36m[Function: replacement]\u001b[39m\n'
+          +     '}'
+      }
+    );
+
+    await assert.rejects(
       () => updateFileContent({
         file: "./",
         match: /(.|\n)*/,

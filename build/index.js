@@ -320,7 +320,7 @@ async function updateFiles ( options ) {
     throw new Error(
       "updateFiles: incorrect options.\n"
       + "Receiving: ".concat(
-        (await import("util")).inspect(options, false, 0, true)
+        require("util").inspect(options, false, 0, true)
       )
     );
   }
