@@ -325,6 +325,23 @@ describe("update files" ,() => {
   });
 
   describe("transcoding", () => {
+    before(function () {
+      const hasFullICU = (() => {
+        try {
+          const january = new Date(9e8);
+          const spanish = new Intl.DateTimeFormat('es', { month: 'long' });
+          return spanish.format(january) === 'enero';
+        } catch (err) {
+          return false;
+        }
+      })();
+      
+      if(!hasFullICU) {
+        console.info('\x1b[36m%s\x1b[0m', "    # this is only available for Node embedded the entire ICU (full-icu)")
+        return this.skip();
+      }
+    });
+  
     it("gbk to utf8 buffer", async () => {
       await updateFileContent({
         from: createReadStream(join(__dirname, "./gbk.txt")),
