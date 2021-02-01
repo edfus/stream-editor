@@ -262,7 +262,7 @@ async function updateFiles ( options ) {
           }, void 0);
           // If initialValue is not provided, reduce() will skip the first index.
         } catch (err) {
-          resultStreams.forEach(stream => stream.destroy(err));
+          resultStreams.forEach(stream => stream.destroy());
           destination.end(() => { throw err });
         }
 
@@ -291,9 +291,9 @@ async function updateFiles ( options ) {
 
             destroy (err, cb) {
               dests.forEach(
-                writeStream => writeStream.destroy(err)
+                writeStream => writeStream.destroy()
               );
-              return cb();
+              return cb(err);
             },
             autoDestroy: true, // Default: true.
 
@@ -317,7 +317,12 @@ async function updateFiles ( options ) {
       }
     }
       
-    throw new Error("updateFiles: incorrect options.");
+    throw new Error(
+      "updateFiles: incorrect options.\n"
+      + "Receiving: ".concat(
+        (await import("util")).inspect(options, false, 0, true)
+      )
+    );
   }
 }
 

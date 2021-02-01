@@ -53,7 +53,7 @@ export default (async (file, { readStart, writeStart } = {}) => {
         this.destroy(err);
       }
     }
-  }).on("error", fd.close)
+  }).on("error", fd.close);
 
   const writeStream = new Writable({
     async write(chunk, encoding, callback) {
@@ -100,7 +100,7 @@ export default (async (file, { readStart, writeStart } = {}) => {
         .then(callback)
         .catch(err => callback(err))
     }
-  }).on("error", fd.close)
+  }).on("error", fd.close);
 
   return {
     fd,

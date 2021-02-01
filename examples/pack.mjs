@@ -69,7 +69,7 @@ const validation = join(root_directory, "./test");
             {
               search: `import { promises as fsp } from "fs";`,
               replacement:
-              `const fsp = require("fs/promises");`
+              `const fsp = require("fs").promises;`
             },
             {
               search: `import { Readable, Writable } from "stream";`,
