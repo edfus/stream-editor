@@ -342,7 +342,7 @@ describe("update files" ,() => {
     });
 
     it("gbk to hex with HWM", async () => {
-      const fileHandler = await fsp.open(join(__dirname, "./gbk.txt"), "r")
+      const fileHandler = await fsp.open(join(__dirname, "./gbk.txt"), "r");
       await updateFileContent({
         from: new Readable({
           highWaterMark: 3,
@@ -352,20 +352,16 @@ describe("update files" ,() => {
               const { bytesRead } = await fileHandler.read(chunk, 0, size, null);
   
               return (
-                !bytesRead
+                bytesRead === 0
                 ? this.push(null)
                 : this.push(chunk.slice(0, bytesRead))
               );
             } catch (err) {
               this.destroy(err);
             }
-          },
-          async destroy (err, cb) {
-            await fileHandler.close();
-            cb();
-            throw err;
           }
-        }),
+        }).once("error", fileHandler.close)
+          .once("end", fileHandler.close),
         to: createWriteStream(join(__dirname, "./dump-hex.txt")),
         decodeBuffers: "gbk",
         encoding: "hex"
@@ -392,7 +388,7 @@ describe("update files" ,() => {
   })
 
   describe("corner cases", () => {
-    xit("can handle empty content", async () => { //NOTE: Error: EBADF: bad file descriptor, read
+    it("can handle empty content", async () => {
       try {
         await updateFileContent({
           file: join(__dirname, `./dump${dump$[3]}`),
