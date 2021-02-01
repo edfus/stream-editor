@@ -1,6 +1,5 @@
-const fstat = require("fs").fstat;
 const pipeline = require("stream").pipeline;
-const rw = require("rw-stream");
+const rw = require("./rw-stream/index.js");
 const _$_ = require("./transform.js");
 const { Transform, NukableTransform } = _$_;
 
@@ -56,18 +55,10 @@ async function process_stream (
 
 
 async function rw_stream(filepath, options) {
-  const { fd, readStream, writeStream } = await rw(filepath);
+  const { readStream, writeStream } = await rw(filepath);
 
-  if (
-    await new Promise(
-      (resolve, reject) =>
-        fstat(fd, (err, status) => err ? reject(err) : resolve(status.isFile()))
-    ) // fs.open won't throw a complaint, so it's our duty.
-  )
-    return process_stream(readStream, writeStream, options)
+  return process_stream(readStream, writeStream, options)
             .then(() => void 0); // not leaking reference to local writeStream
-  else
-    throw new Error(`update-file-content: filepath ${filepath} is invalid.`);
 }
 
 module.exports = { rw_stream, process_stream };
