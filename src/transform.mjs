@@ -38,7 +38,7 @@ class Transform extends Node_Transform {
       if(this[kSource].length > this.maxLength) //NOTE
         return cb(
           new Error(
-            "Maximum buffer length reached: ..."
+            `Maximum buffer length ${this.maxLength} reached: ...`
                 .concat(
                   this[kSource].slice(
                     this[kSource].length - 90,

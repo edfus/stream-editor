@@ -1,7 +1,7 @@
 import { updateFileContent, updateFiles } from "../src/index.mjs";
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { Readable } from "stream";
+import { PassThrough, Readable } from "stream";
 import { createReadStream, createWriteStream, existsSync, promises as fsp } from "fs";
 import assert from "assert";
 import { StringDecoder } from "string_decoder";
@@ -30,7 +30,7 @@ describe("update files" ,() => {
       }),
       {
         name: "TypeError",
-        message: "updateFileContent: options.file is invalid."
+        message: "updateFileContent: options.file '' is invalid."
       }
     );
 
@@ -43,6 +43,7 @@ describe("update files" ,() => {
       }),
       {
         name: "Error",
+        code: "EINVAL",
         message:
           'updateFiles: incorrect options.\n'
           +     'Receiving: {\n'
@@ -82,7 +83,7 @@ describe("update files" ,() => {
       }),
       {
         name: "TypeError",
-        message: "update-file-content: received non-function full replacement $1 while limit being specified"
+        message: "update-file-content: received non-function full replacement '$1' while limit being specified"
       } 
     );
 
@@ -104,7 +105,7 @@ describe("update files" ,() => {
       }),
       {
         name: "TypeError",
-        message: "update-file-content: options.join null is invalid."
+        message: "update-file-content: options.join 'null' is invalid."
       }
     )
   });
@@ -189,6 +190,31 @@ describe("update files" ,() => {
             })
   });
 
+  it("should have line buffer maxLength", async () => {
+    await assert.rejects(
+        () => updateFileContent({
+            from: new Readable({
+              read (size) {
+                for(let i = 0; i < size; i++) {
+                  this.push(String(i))
+                }
+              }
+            }),
+            to: new PassThrough(),
+            search: /.^/,
+            replacement: "",
+            separator: null,
+            maxLength: 100
+          }),
+        {
+          name: "Error",
+          message: "Maximum buffer length 100 reached: ".concat(
+            "...111213141516171819202122232425262728293031323334353637383940414243444546474849505152535455"
+          )
+        }
+      )
+  });
+
   it("should update and combine multiple Readable into one Writable", async () => {
     await updateFiles({
       from: 
@@ -235,7 +261,7 @@ describe("update files" ,() => {
             result
           );
         })
-  })
+  });
 
   describe("truncation & limitation", () => {
     it("truncating the rest when limitations reached", async () => {
