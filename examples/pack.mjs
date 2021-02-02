@@ -1,6 +1,6 @@
 import { exec } from "child_process";
 import { createReadStream, createWriteStream, unlink } from "fs";
-import { join, basename, extname, resolve, dirname } from "path";
+import { join, basename, extname, dirname } from "path";
 import { pipeline } from "stream";
 import { updateFileContent } from "../src/index.mjs";
 import { root_directory } from "./helpers/__dirname.mjs";

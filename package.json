@@ -1,6 +1,6 @@
 {
   "name": "update-file-content",
-  "version": "1.7.3",
+  "version": "1.7.4",
   "description": "A simple utility for executing RegEx replacement on files, powered by stream.",
   "scripts": {
     "example": "node examples/update-sw-content.mjs",
@@ -71,6 +71,7 @@
   },
   "license": "ISC",
   "devDependencies": {
-    "@types/mocha": "^8.2.0"
+    "@types/mocha": "^8.2.0",
+    "@types/node": "^14.14.22"
   }
 }

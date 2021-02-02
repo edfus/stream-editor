@@ -15,7 +15,7 @@ export default (async (file, { readStart, writeStart } = {}) => {
     throw new TypeError("Read index or write index is NOT A NUMBER");   
 
   if (readStart < writeStart) 
-    throw new TypeError("Read index MUST come before write index.");
+    throw new RangeError("Read index MUST come before write index.");
 
   let nextReadingDone = {
     promise: null,
@@ -76,8 +76,8 @@ export default (async (file, { readStart, writeStart } = {}) => {
           // when readIndex - (writeIndex + totalBytesWritten) yielded 0
           if (writeLength === 0) {
             await nextReadingDone.promise;
-            if (toWrite.length === totalBytesWritten) 
-              debugger;
+            // if (toWrite.length === totalBytesWritten) 
+            //   debugger;
             continue;
           }
 
