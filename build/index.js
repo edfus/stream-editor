@@ -6,8 +6,8 @@ const { PassThrough, Readable, Writable } = stream;
 function _getReplaceFunc ( options ) {
   let replace = [];
 
-  let global_limit = 0;
-  let global_counter = 0;
+  let globalLimit = 0;
+  let globalCounter = 0;
 
   const search = options.search || options.match;
 
@@ -15,10 +15,10 @@ function _getReplaceFunc ( options ) {
     replace.push({
       search: search,
       replacement: options.replacement,
-      limit: options.limit
+      limit: options.limit // treat it as a local limit
     });
   } else if(validate(options.limit, 1)) {
-    global_limit = options.limit;
+    globalLimit = options.limit;
   }
 
   if(validate(options.replace, Array)) // will be validated in replace.map
@@ -40,9 +40,9 @@ function _getReplaceFunc ( options ) {
         join = part => part;
         break;
       default: throw new TypeError(
-        "update-file-content: options.join "
+        "update-file-content: options.join '"
         + String(options.join)
-        + " is invalid."
+        + "' is invalid."
       )
     }
   } else {
@@ -50,7 +50,7 @@ function _getReplaceFunc ( options ) {
   }
 
   const callback = (part, EOF) => {
-    if(typeof part !== "string") return ""; // "Adbfdbdafb".split(/(?=([^,\n]+(,\n)?|(,\n)))/)
+    if(typeof part !== "string") return ""; // For cases like "Adbfdbdafb".split(/(?=([^,\n]+(,\n)?|(,\n)))/)
 
     replace.forEach(rule => {
       part = part.replace(
@@ -67,8 +67,12 @@ function _getReplaceFunc ( options ) {
       search = match;
 
     if(!is(search, RegExp, "") || !is(replacement, Function, ""))
-      throw new TypeError("update-file-content: !is(search, RegExp, \"\") || !is(replacement, Function, \"\")");
-    
+      throw new TypeError(
+        "update-file-content: "
+        + "(search|match) is neither RegExp nor string"
+        + "OR replacement is neither Function nor string"
+      );
+
     let rule;
 
     if(typeof search === "string") {
@@ -113,37 +117,37 @@ function _getReplaceFunc ( options ) {
             flags
           ),
         replacement: 
-          (match_whole, prefix, match_substr) => 
-            match_whole.replace(
-              prefix.concat(match_substr),
+          (wholeMatch, prefix, substrMatch) => 
+            wholeMatch.replace(
+              prefix.concat(substrMatch),
               prefix.concat(replacement)
             ) // using prefix as a hook
       }
     }
 
      // limit
-    if(validate(limit, 1) || global_limit) {
+    if(validate(limit, 1) || globalLimit) {
       if(typeof rule.replacement === "function") {
         let counter = 0;
-        const func_ptr = rule.replacement;
+        const funcPtr = rule.replacement;
   
         rule.replacement = function (notify, ...args) {
           if(
-              ( global_limit && ++global_counter >= global_limit )
+              ( globalLimit && ++globalCounter >= globalLimit )
               || ++counter >= limit
             )
             if(notify() === Symbol.for("notified"))
               return args[0]; // return the whole unmodified match string
   
-          return func_ptr.apply(this, args);
+          return funcPtr.apply(this, args);
         }.bind(rule, () => callback._cb_limit());
   
         callback.withLimit = true;
         callback.truncate = options.truncate;
       } else {
-        throw new TypeError("update-file-content: received non-function full replacement "
+        throw new TypeError("update-file-content: received non-function full replacement '"
                         + rule.replacement
-                        + " while limit being specified");
+                        + "' while limit being specified");
       }
     }
 
@@ -159,6 +163,7 @@ async function updateFileContent( options ) {
   const encoding = options.encoding || null;
   const decodeBuffers = options.decodeBuffers || "utf8";
   const truncate = "truncate" in options ? options.truncate : false;
+  const maxLength = options.maxLength || Infinity;
 
   if("file" in options) {
     if(validate(options.file, "."))
@@ -169,10 +174,11 @@ async function updateFileContent( options ) {
             processFunc: replaceFunc,
             encoding,
             decodeBuffers,
-            truncate
+            truncate,
+            maxLength
           }
         );
-    else throw new TypeError("updateFileContent: options.file is invalid.")
+    else throw new TypeError(`updateFileContent: options.file '${options.file}' is invalid.`)
   } else {
     const readStream = options.readStream || options.from;
     const writeStream = options.writeStream || options.to;
@@ -186,7 +192,8 @@ async function updateFileContent( options ) {
           processFunc: replaceFunc, 
           encoding,
           decodeBuffers,
-          truncate
+          truncate,
+          maxLength
         }
       );
     else throw new TypeError("updateFileContent: options.(readStream|writeStream|from|to) is invalid.")
@@ -198,10 +205,11 @@ async function updateFiles ( options ) {
   const encoding = options.encoding || null;
   const decodeBuffers = options.decodeBuffers || "utf8";
   const truncate = "truncate" in options ? options.truncate : false;
+  const maxLength = options.maxLength || Infinity;
 
   if(validate(options.files, Array) && validate(...options.files, ".")) {
     return Promise.all(
-      options.file.map(file => 
+      options.files.map(file => 
         rw_stream (
           file,
           {
@@ -209,7 +217,8 @@ async function updateFiles ( options ) {
             processFunc: _getReplaceFunc(options), 
             encoding,
             decodeBuffers,
-            truncate
+            truncate,
+            maxLength
           }
         )
       )
@@ -238,7 +247,8 @@ async function updateFiles ( options ) {
                 processFunc: _getReplaceFunc(options),
                 encoding,
                 decodeBuffers,
-                truncate
+                truncate,
+                maxLength
               }
             );
           }
@@ -309,20 +319,23 @@ async function updateFiles ( options ) {
             processFunc: _getReplaceFunc(options),
             encoding,
             decodeBuffers,
-            truncate
+            truncate,
+            maxLength
           }
         ) 
       } else {
         throw new TypeError("updateFiles: options.(writeStream|to) is not an instance of Array<Writable>");
       }
     }
-      
-    throw new Error(
+
+    const error = new Error (
       "updateFiles: incorrect options.\n"
       + "Receiving: ".concat(
         require("util").inspect(options, false, 0, true)
       )
     );
+    error.code = 'EINVAL';
+    throw error;
   }
 }
 

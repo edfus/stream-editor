@@ -11,7 +11,10 @@ const validation = join(root_directory, "./test");
 
 (async () => {
   await Promise.all(
-    ["./index.mjs", "./streams.mjs", "./transform.mjs", "./rw-stream/index.mjs"].map(
+    [
+      "./index.mjs", "./streams.mjs", "./transform.mjs", "./rw-stream/index.mjs",
+      "./index.d.ts"
+    ].map(
       async filepath => {
         // es module
         await new Promise((resolve, reject) => 
@@ -21,6 +24,9 @@ const validation = join(root_directory, "./test");
             err => err ? reject(err) : resolve()
           )
         );
+        
+        if(!filepath.endsWith(".mjs"))
+            return ;
         // common js
         return updateFileContent({
           readStream: createReadStream(join(source, filepath)),

@@ -6,7 +6,7 @@ import { processFiles } from "./helpers/process-files.mjs";
 const replacement = ["\"README.md\"", "\"package.json\""];
 
 Promise.all(
-  ["./build", "./examples", "./src", "./test"]
+  ["./build"]
   .map(folder => join(root_directory, folder))
   .map(
     async folder => await processFiles(

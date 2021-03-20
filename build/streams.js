@@ -6,7 +6,7 @@ const { Transform, NukableTransform } = _$_;
 async function process_stream (
   readStream,
   writeStream,
-  { separator, processFunc, encoding, decodeBuffers, truncate }
+  { separator, processFunc, encoding, decodeBuffers, truncate, maxLength }
 ) {
 
   let transformStream;
@@ -18,7 +18,8 @@ async function process_stream (
           process: processFunc,
           encoding,
           decodeBuffers,
-          withFalloutShelter: !truncate
+          withFalloutShelter: !truncate,
+          maxLength
       });
   
       let limitReached = false;
@@ -40,7 +41,8 @@ async function process_stream (
         separator,
         process: processFunc,
         encoding,
-        decodeBuffers
+        decodeBuffers,
+        maxLength
       })
     }
   } catch (err) {
