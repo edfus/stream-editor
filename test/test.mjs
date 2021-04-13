@@ -8,7 +8,7 @@ import { StringDecoder } from "string_decoder";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-describe("update files" ,() => {
+describe("Update files" ,() => {
   const char_map = "dbdbdbThisIsADumbTestbbbsms".split("");
   const dump$ = [
     "-dumplings", "-limitations",
@@ -63,28 +63,6 @@ describe("update files" ,() => {
         limit: 88
       }),
       /EISDIR: illegal operation on a directory/
-    );
-
-    await assert.rejects(
-      () => updateFileContent({
-        file: "./",
-        replace: [
-          {
-            search: /((.|\n)*)/,
-            replacement: "$1"
-          },
-          {
-            search: /[a-z]{5}.{5}/i,
-            replacement: "-"
-          },
-        ],
-        join: part => part === "" ? "" : part.concat("\n"),
-        limit: 88
-      }),
-      {
-        name: "TypeError",
-        message: "update-file-content: received non-function full replacement '$1' while limit being specified"
-      } 
     );
 
     await assert.rejects(
