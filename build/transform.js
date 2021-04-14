@@ -1,3 +1,4 @@
+"use strict";
 const { Transform: Node_Transform } = require("stream");
 
 const kSource = Symbol("source");

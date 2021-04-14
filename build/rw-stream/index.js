@@ -1,3 +1,4 @@
+"use strict";
 //CREDIT: https://github.com/signicode/rw-stream
 
 const { promises: fsp } = require("fs");
@@ -37,7 +38,7 @@ module.exports = (async (file, { readStart, writeStart } = {}) => {
     return emitDone(bytesRead);
   }
 
-  const readStream = new Readable({
+  const readableStream = new Readable({
     async read(size) {
       try {
         const buffer = Buffer.alloc(size);
@@ -55,7 +56,7 @@ module.exports = (async (file, { readStart, writeStart } = {}) => {
     }
   }).on("error", fd.close);
 
-  const writeStream = new Writable({
+  const writableStream = new Writable({
     async write(chunk, encoding, callback) {
       try {
         const toWrite = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding);
@@ -104,7 +105,7 @@ module.exports = (async (file, { readStart, writeStart } = {}) => {
 
   return {
     fd,
-    readStream,
-    writeStream
+    readableStream,
+    writableStream
   };
 });

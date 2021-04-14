@@ -1,7 +1,7 @@
 # This workflow will do a clean install of node dependencies, build the source code and run tests across different versions of node
 # For more information see: https://help.github.com/actions/language-and-framework-guides/using-nodejs-with-github-actions
 
-name: Node.js CI
+name: CI
 
 on:
   push:
@@ -37,5 +37,7 @@ jobs:
           ${{ runner.os }}-build-
           ${{ runner.os }}-
     - run: npm install
-    - run: npm install mocha
-    - run: npm test
+    - run: npm install -g mocha
+    - run: npm install -g codecov
+    - run: npm install -g c8
+    - run: c8 --reporter lcovonly npm test && codecov

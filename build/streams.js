@@ -1,10 +1,11 @@
+"use strict";
 const { pipeline } = require("stream");
 const rw = require("./rw-stream/index.js");
 const { Transform, NukableTransform } = require("./transform.js");
 
 async function process_stream (
-  readStream,
-  writeStream,
+  readableStream,
+  writableStream,
   { separator, processFunc, encoding, decodeBuffers, truncate, maxLength }
 ) {
 
@@ -30,9 +31,9 @@ async function process_stream (
           transformStream.detonateTheBombNow = true
           // starting from v14.0.0, The pipeline will wait for the 'close' event
           // for non-duplex & non-legacy streams created with the emitClose option.
-          // so marking the end of the readStream manually is required.
+          // so marking the end of the readableStream manually is required.
           if(truncate)
-            readStream.push(null);
+            readableStream.push(null);
         }
       }
     } else {
@@ -45,30 +46,30 @@ async function process_stream (
       })
     }
   } catch (err) {
-    readStream.destroy();
+    readableStream.destroy();
     transformStream
       && typeof transformStream.destroy === "function"
       && transformStream.destroy();
-    writeStream.destroy();
+    writableStream.destroy();
     return Promise.reject(err);
   }
 
   return new Promise((resolve, reject) => {
     pipeline (
-      readStream,
+      readableStream,
       transformStream,
-      writeStream,
-      err => err ? reject(err) : resolve(writeStream)
+      writableStream,
+      err => err ? reject(err) : resolve(writableStream)
     );
   });
 }
 
 
 async function rw_stream(filepath, options) {
-  const { readStream, writeStream } = await rw(filepath);
+  const { readableStream, writableStream } = await rw(filepath);
 
-  return process_stream(readStream, writeStream, options)
-            .then(() => void 0); // not leaking reference to local writeStream
+  return process_stream(readableStream, writableStream, options)
+            .then(() => void 0); // not leaking reference to local writableStream
 }
 
 module.exports = { rw_stream, process_stream };

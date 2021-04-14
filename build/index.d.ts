@@ -9,6 +9,10 @@ interface BasicReplaceOption {
   replacement: string | ((wholeMatch: string, ...args: string[]) => string);
   full_replacement?: Boolean;
   limit?: LocalLimit;
+  /**
+   * 0 for infinity
+   */
+  maxTimes?: number;
 }
 
 interface SearchAndReplaceOption extends BasicReplaceOption {
