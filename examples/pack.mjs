@@ -55,6 +55,12 @@ const replacements = {
   ],
   commonReplace: [
     {
+      match: /^().*(\r?\n)/,
+      replacement: `"use strict";$2`,
+      full_replacement: false,
+      maxTimes: 1
+    },
+    {
       match: matchImport(`((.+?)${mjs.from.replace(".", "\\.")})`),
       replacement: "$2".concat(mjs.toCJS),
       full_replacement: false
@@ -224,8 +230,8 @@ async function transport (filepath, sourcePath, destination, replace, isTest = f
       // mjs to common js
       return Promise.all([
         updateFileContent({
-          readStream: createReadStream(join(sourcePath, filepath)),
-          writeStream: 
+          readableStream: createReadStream(join(sourcePath, filepath)),
+          writableStream: 
             createWriteStream (
               join (
                 destination,
