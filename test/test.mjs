@@ -132,7 +132,8 @@ describe("Update files" ,() => {
           file: join(__dirname, `./dump${dump$[0]}`),
           separator: /,(?=\n)/i,
           search: /(.+?)(dumpling)/i,
-          replacement: "$2 " // this is a full replacement
+          replacement: "$2 ",
+          full_replacement: true
         });
       })
   });
@@ -284,9 +285,10 @@ describe("Update files" ,() => {
         search: /(.|\n)+/, 
         // must + rather than * otherwise '' will be captured too
         replacement: () => "", // full replacement
+        full_replacement: true,
         limit: 88, 
         // totally there are 91 lines,
-        // 90 of them are prefixed with \n, except the first one
+        // 90 of them are preceded by \n, except the first one
         truncate: false
       });
 
@@ -428,27 +430,21 @@ describe("Update files" ,() => {
 
   describe("corner cases", () => {
     it("can handle empty content", async () => {
-      try {
-        await updateFileContent({
-          file: join(__dirname, `./dump${dump$[3]}`),
-          separator: /,/,
-          search: /(.|\n)+/, 
-          replacement: () => "", // full replacement
-          limit: 88,
-          truncate: true
-        });
-  
-        await fsp.readFile(join(__dirname, `./dump${dump$[3]}`), "utf-8")
-                  .then(result => assert.strictEqual(
-                    '',
-                    result
-                  ));
-      } catch (err) {
-        assert.strictEqual(
-          "Cannot read property 'then' of undefined",
-          err.message
-        ); // 
-      }
+      await updateFileContent({
+        file: join(__dirname, `./dump${dump$[3]}`),
+        separator: /,/,
+        search: /(.|\n)+/, 
+        replacement: () => "",
+        full_replacement: true,
+        limit: 88,
+        truncate: true
+      });
+
+      await fsp.readFile(join(__dirname, `./dump${dump$[3]}`), "utf-8")
+                .then(result => assert.strictEqual(
+                  '',
+                  result
+                ));
     });
   
     it("can handle premature stream close", async () => {

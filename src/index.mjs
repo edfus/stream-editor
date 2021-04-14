@@ -1,8 +1,10 @@
 import { process_stream, rw_stream } from "./streams.mjs";
 import { PassThrough, Readable, Writable } from "stream";
 
+let escapeRegEx; // lazy load
 const captureGroupPattern = /(?<!\\)\$([1-9]{1,3}|\&|\`|\')/;
 const captureGroupPatternGlobal = new RegExp(captureGroupPattern, "g");
+
 // is () and not \( \) nor (?<=x) (?<!x) (?=x) (?!x)
 // (?!\?) alone is enough, as /(?/ is an invalid RegExp
 const splitToPCGroupsPattern = /(.*?)(?<!\\)\((?!\?)(.*)(?<!\\)\)(.*)/;
@@ -20,7 +22,8 @@ function _getReplaceFunc ( options ) {
       search: search,
       replacement: options.replacement,
       limit: options.limit,      // being a local limit
-      maxTimes: options.maxTimes
+      maxTimes: options.maxTimes,
+      full_replacement: options.full_replacement
     });
   } else if(validate(options.limit, 1)) {
     globalLimit = options.limit;
@@ -89,10 +92,11 @@ function _getReplaceFunc ( options ) {
          */
         full_replacement = true;
   
-        const escapeRegEx = new RegExp(
-          "(" + "[]\\^$.|?*+(){}".split("").map(c => "\\".concat(c)).join("|") + ")",
-          "g"
-        );
+        if(!escapeRegEx)
+          escapeRegEx = new RegExp(
+            "(" + "[]\\^$.|?*+(){}".split("").map(c => "\\".concat(c)).join("|") + ")",
+            "g"
+          );
   
         search = {
           source: search.replace(escapeRegEx, "\\$1"),
@@ -109,10 +113,10 @@ function _getReplaceFunc ( options ) {
       if (!flags.includes("g"))
         flags = "g".concat(flags);
   
-      if(!splitToPCGroupsPattern.test(search.source))
+      if(!full_replacement && !splitToPCGroupsPattern.test(search.source))
         full_replacement = true;
   
-      if(full_replacement || typeof replacement === "function") {
+      if(full_replacement) {
         if(typeof replacement === "string") {
           const temp_str = replacement;
           replacement = () => temp_str;
@@ -123,21 +127,26 @@ function _getReplaceFunc ( options ) {
           replacement: replacement
         }
       } else {
-        // Replace the 1st parenthesized substring match with replacement.
-        
+        /**
+         * Replace the 1st parenthesized substring match with replacement,
+         * and that is a so-called partial replacement.
+         */
         const hasPlaceHolder = captureGroupPattern.test(replacement);
-  
+        const isFunction     = typeof replacement === "function";
+
+        const specialTreatmentNeeded = hasPlaceHolder || isFunction;
+
         rule = {
-          pattern:
+          pattern: 
             new RegExp (
               search.source // add parentheses for matching substrings exactly,
                 .replace(splitToPCGroupsPattern, "($1)($2)$3"), // greedy
               flags
             ),
           replacement:
-            (wholeMatch, prefix, substrMatch, ...rest) => {
+            (wholeMatch, precededPart, substrMatch, ...rest) => {
               let _replacement = replacement;
-              if(hasPlaceHolder) {
+              if(specialTreatmentNeeded) {
                 let i = 0;
                 for (; i < rest.length; i++) {
                   // offset parameter
@@ -145,43 +154,51 @@ function _getReplaceFunc ( options ) {
                     break;
                   }
                 }
-  
+
                 const userDefinedGroups = [substrMatch].concat(rest.slice(0, i));
-                
-                _replacement = _replacement.replace(
-                  captureGroupPatternGlobal,
-                  $n => {
-                    const n = $n.replace(/^\$/, "");
-                    // Bear in mind that this is a partial match
-                    switch (n) {
-                      case "&":
-                        // Inserts the matched substring.
-                        return substrMatch;
-                      case "`":
-                        // Inserts the portion of the string that precedes the matched substring.
-                        return prefix;
-                      case "'":
-                        // 	Inserts the portion of the string that follows the matched substring.
-                        return wholeMatch.replace(prefix.concat(substrMatch), "");
-                      default:
-                        const i = parseInt(n) - 1;
-                        // a positive integer less than 100, inserts the nth parenthesized submatch string
-                        if(typeof i !== "number" || i >= userDefinedGroups.length || i < 0) {
-                          console.warn(
-                            `\x1b[33m${$n} is not satisfiable for ${wholeMatch} ${userDefinedGroups}`
-                          );
-                          return $n; // as a literal
-                        }
-                        return userDefinedGroups[i];
+
+                if(isFunction) {
+                  // partial replacement with a function
+                  _replacement = replacement(
+                    substrMatch, ...userDefinedGroups, wholeMatch.indexOf(substrMatch), wholeMatch
+                  );
+                } else {
+                  // has capture group placeHolder
+                  _replacement = _replacement.replace(
+                    captureGroupPatternGlobal,
+                    $n => {
+                      const n = $n.replace(/^\$/, "");
+                      // Bear in mind that this is a partial match
+                      switch (n) {
+                        case "&":
+                          // Inserts the matched substring.
+                          return substrMatch;
+                        case "`":
+                          // Inserts the portion of the string that precedes the matched substring.
+                          return precededPart;
+                        case "'":
+                          // 	Inserts the portion of the string that follows the matched substring.
+                          return wholeMatch.replace(precededPart.concat(substrMatch), "");
+                        default:
+                          const i = parseInt(n) - 1;
+                          // a positive integer less than 100, inserts the nth parenthesized submatch string
+                          if(typeof i !== "number" || i >= userDefinedGroups.length || i < 0) {
+                            console.warn(
+                              `\x1b[33m${$n} is not satisfiable for ${wholeMatch} ${userDefinedGroups}`
+                            );
+                            return $n; // as a literal
+                          }
+                          return userDefinedGroups[i];
+                      }
                     }
-                  }
-                );
+                  );
+                }
               }
-  
-              // using prefix as a hook
+
+              // using precededPart as a hook
               return wholeMatch.replace(
-                prefix.concat(substrMatch),
-                prefix.concat(_replacement)
+                precededPart.concat(substrMatch),
+                precededPart.concat(_replacement)
               );
             }
         }

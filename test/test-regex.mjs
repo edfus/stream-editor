@@ -171,6 +171,71 @@ describe("Normalize & Replace", () => {
     );
   });
 
+  it("can replace partially with function", () => {
+    const replace_str = getReplaceFunction([
+      {
+        match: /^().*(\r?\n)/,
+        replacement: `"use strict";$2`,
+        full_replacement: false,
+        maxTimes: 1
+      }
+    ]);
+
+    const replace_func = getReplaceFunction([
+      {
+        match: /^().*(\r?\n)/,
+        replacement: ($and, $1, $2, offset) => {
+          strictEqual($and, "");
+          strictEqual($and, $1);
+          strictEqual(offset, 0);
+          return `"use strict";${$2}`;
+        },
+        full_replacement: false,
+        maxTimes: 1
+      }
+    ]);
+
+    const toMatch = "//NO\TE: wow\nWhat a funky!\n";
+    strictEqual(
+      replace_str(toMatch),
+      replace_func(toMatch)
+    );
+
+    const replace_str1 = getReplaceFunction([
+      {
+        match: /^\w{3}logue: ((Pleasure to see you), (invisible friend)!(.*$))/,
+        replacement: `"$2"... whoever you are.$4 - $3.`,
+        full_replacement: false,
+        maxTimes: 1
+      }
+    ]);
+
+    const replace_func1 = getReplaceFunction([
+      {
+        match: /^\w{3}logue: ((Pleasure to see you), (invisible friend)!(.*$))/,
+        replacement: ($and, $1, $2, $3, $4, offset) => {
+          strictEqual($and, $1);
+          strictEqual(offset, 10);
+          return `"${$2}"... whoever you are.${$4} - ${$3}.`;
+        },
+        full_replacement: false,
+        maxTimes: 1
+      }
+    ]);
+
+    const toMatch1 = "prologue: Pleasure to see you, invisible friend! Give in to nonsense, there's nothing to fight!";
+    const result1  = `prologue: "Pleasure to see you"... whoever you are. Give in to nonsense, there's nothing to fight! - invisible friend.`;
+    strictEqual(
+      replace_str1(toMatch1),
+      result1
+    );
+
+    strictEqual(
+      replace_func1(toMatch1),
+      result1
+    );
+  });
+
   it("recognize $& $` $'", () => {
     const replace = getReplaceFunction([
       {
@@ -203,6 +268,7 @@ describe("Normalize & Replace", () => {
 });
 
 function getReplaceFunction(optionsArray) {
+  let escapeRegEx; // lazy load
   const captureGroupPattern = /(?<!\\)\$([1-9]{1,3}|\&|\`|\')/;
   const captureGroupPatternGlobal = new RegExp(captureGroupPattern, "g");
   // is () and not \( \) nor (?<=x) (?<!x) (?=x) (?!x)
@@ -213,15 +279,14 @@ function getReplaceFunction(optionsArray) {
     if(match && !search)
       search = match;
 
-    let rule;
-
     if(typeof search === "string") {
       full_replacement = true; // must be
 
-      const escapeRegEx = new RegExp(
-        "(" + "[]\\^$.|?*+(){}".split("").map(c => "\\".concat(c)).join("|") + ")",
-        "g"
-      );
+      if(!escapeRegEx)
+        escapeRegEx = new RegExp(
+          "(" + "[]\\^$.|?*+(){}".split("").map(c => "\\".concat(c)).join("|") + ")",
+          "g"
+        );
 
       search = {
         source: search.replace(escapeRegEx, "\\$1"),
@@ -252,37 +317,48 @@ function getReplaceFunction(optionsArray) {
     if(!splitToPCGroupsPattern.test(search.source))
       full_replacement = true;
 
-    if(full_replacement || typeof replacement === "function") {
-      rule = {
+    if(full_replacement) {
+      return {
         pattern: new RegExp (search.source, flags),
         replacement: replacement
       }
-    } else {
-      // Replace the 1st parenthesized substring match with replacement.
-      
-      const hasPlaceHolder = captureGroupPattern.test(replacement);
+    }
 
-      rule = {
-        pattern: 
-          new RegExp (
-            search.source // add parentheses for matching substrings exactly,
-              .replace(splitToPCGroupsPattern, "($1)($2)$3"), // greedy
-            flags
-          ),
-        replacement: 
-          (wholeMatch, prefix, substrMatch, ...rest) => {
-            let _replacement = replacement;
-            if(hasPlaceHolder) {
-              let i = 0;
-              for (; i < rest.length; i++) {
-                // offset parameter
-                if(typeof rest[i] === "number") {
-                  break;
-                }
+    // Replace the 1st parenthesized substring match with replacement.
+    // and that is a so-called partial replacement.
+    const hasPlaceHolder = captureGroupPattern.test(replacement);
+    const isFunction     = typeof replacement === "function";
+
+    const specialTreatmentNeeded = hasPlaceHolder || isFunction;
+
+    const rule = {
+      pattern: 
+        new RegExp (
+          search.source // add parentheses for matching substrings exactly,
+            .replace(splitToPCGroupsPattern, "($1)($2)$3"), // greedy
+          flags
+        ),
+      replacement: 
+        (wholeMatch, prefix, substrMatch, ...rest) => {
+          let _replacement = replacement;
+          if(specialTreatmentNeeded) {
+            let i = 0;
+            for (; i < rest.length; i++) {
+              // offset parameter
+              if(typeof rest[i] === "number") {
+                break;
               }
+            }
 
-              const userDefinedGroups = [substrMatch].concat(rest.slice(0, i));
-              
+            const userDefinedGroups = [substrMatch].concat(rest.slice(0, i));
+
+            if(isFunction) {
+              // partial replacement with a function
+              _replacement = replacement(
+                substrMatch, ...userDefinedGroups, wholeMatch.indexOf(substrMatch), wholeMatch
+              );
+            } else {
+              // has capture group placeHolder
               _replacement = _replacement.replace(
                 captureGroupPatternGlobal,
                 $n => {
@@ -312,14 +388,14 @@ function getReplaceFunction(optionsArray) {
                 }
               );
             }
-
-            // using prefix as a hook
-            return wholeMatch.replace(
-              prefix.concat(substrMatch),
-              prefix.concat(_replacement)
-            );
           }
-      }
+
+          // using prefix as a hook
+          return wholeMatch.replace(
+            prefix.concat(substrMatch),
+            prefix.concat(_replacement)
+          );
+        }
     }
 
     return rule;
