@@ -8,8 +8,7 @@
     "pack": "node examples/pack.mjs",
     "test": "mocha",
     "test/regex": "mocha test/test-regex.mjs",
-    "test/regexp": "mocha test/test-regex.mjs",
-    "prepare": "npm run pack"
+    "prepare": "npm run pack -- --version=false"
   },
   "files": [
     "README.md",
@@ -49,8 +48,6 @@
   },
   "license": "ISC",
   "devDependencies": {
-    "@types/mocha": "^8.2.0",
-    "@types/node": "^14.14.22",
-    "husky": "^6.0.0"
+    "@types/mocha": "^8.2.0"
   }
 }

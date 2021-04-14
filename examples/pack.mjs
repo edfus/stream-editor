@@ -1,7 +1,5 @@
-import { exec } from "child_process";
+import { exec, spawn } from "child_process";
 import { createReadStream, createWriteStream, copyFile, existsSync, mkdir, rmSync } from "fs";
-import { strictEqual } from "node:assert";
-import { spawn } from "node:child_process";
 import { join, extname, dirname } from "path";
 import { updateFileContent } from "../src/index.mjs";
 import { root_directory } from "./helpers/__dirname.mjs";
@@ -109,10 +107,13 @@ const replacements = {
 };
 
 const then = () => new Promise((resolve, reject) => {
-  exec(`npm run example/npm`, (err, stdout, stderr) => {
-    if(err) return reject(err);
-    return resolve(console.info(stdout));
-  });
+  if(process.argv[2] !== "--version=false") {
+    exec(`npm run example/npm`, (err, stdout, stderr) => {
+      if(err) return reject(err);
+      return resolve(console.info(stdout));
+    });
+  }
+  return resolve();
 });
 
 /**
@@ -257,7 +258,6 @@ async function transport (filepath, sourcePath, destination, replace, isTest = f
 
 function matchImport (addtionalPattern) {
   const parts = /import\s+.+\s+from\s*['"](.+?)['"];?/.source.split("(.+?)");
-  strictEqual(parts.length, 2);
 
   return new RegExp([
     parts[0],
@@ -268,7 +268,6 @@ function matchImport (addtionalPattern) {
 
 function matchDynamicImport (addtionalPattern) {
   const parts = /\(?await import\s*\(\s*(.+?)\s*\)\s*\)?(\s*\.default)?/.source.split("(.+?)");
-  strictEqual(parts.length, 2);
 
   return new RegExp([
     parts[0],
@@ -279,7 +278,6 @@ function matchDynamicImport (addtionalPattern) {
 
 function matchCurrentFolderImport (addtionalPattern) {
   const parts = /import\s+.+\s+from\s*['"]\.\/(.+?)['"];?/.source.split("(.+?)");
-  strictEqual(parts.length, 2);
 
   return new RegExp([
     parts[0],
@@ -290,7 +288,6 @@ function matchCurrentFolderImport (addtionalPattern) {
 
 function matchParentFolderImport (addtionalPattern) {
   const parts = /import\s+.+\s+from\s*['"]\.\.\/(.+?)['"];?/.source.split("(.+?)");
-  strictEqual(parts.length, 2);
 
   return new RegExp([
     parts[0],
