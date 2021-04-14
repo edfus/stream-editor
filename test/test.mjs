@@ -261,9 +261,7 @@ describe("Update files" ,() => {
             result.slice(0, 15 + 13 + 7)
           );
   
-          assert.ok(
-            result.lastIndexOf(",") === result.length - 1
-          );
+          assert.ok(/,\r?\n$/.test(result));
   
           assert.ok(
             !result.slice(15 + 13 + 7, result.length).includes("%")

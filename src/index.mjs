@@ -222,7 +222,7 @@ function _getReplaceFunc ( options ) {
 
 async function updateFileContent( options ) {
   const replaceFunc = _getReplaceFunc(options);
-  const separator = "separator" in options ? options.separator : /(?=\r?\n)/; // NOTE
+  const separator = "separator" in options ? options.separator : /(?<=\r?\n)/;
   const encoding = options.encoding || null;
   const decodeBuffers = options.decodeBuffers || "utf8";
   const truncate = "truncate" in options ? options.truncate : false;
@@ -264,7 +264,7 @@ async function updateFileContent( options ) {
 }
 
 async function updateFiles ( options ) {
-  const separator = "separator" in options ? options.separator : /(?=\r?\n)/;
+  const separator = "separator" in options ? options.separator : /(?<=\r?\n)/;
   const encoding = options.encoding || null;
   const decodeBuffers = options.decodeBuffers || "utf8";
   const truncate = "truncate" in options ? options.truncate : false;
