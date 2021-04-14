@@ -1,4 +1,4 @@
-const Node_Transform = require("stream").Transform;
+const { Transform: Node_Transform } = require("stream");
 
 const kSource = Symbol("source");
 const kNuked = Symbol("nuked");

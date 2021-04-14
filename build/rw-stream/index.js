@@ -1,8 +1,7 @@
 //CREDIT: https://github.com/signicode/rw-stream
 
-const fsp = require("fs").promises;
-const stream = require("stream");
-const { Readable, Writable } = stream;
+const { promises: fsp } = require("fs");
+const { Readable, Writable } = require("stream");
 
 const { open } = fsp;
 

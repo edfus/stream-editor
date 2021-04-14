@@ -1,7 +1,10 @@
 # folders
 node_modules/
+coverage/
 
 # files
 package-lock.json
 dump*
 *.tmp.*
+*.tmp
+process-files.js

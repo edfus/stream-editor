@@ -8,11 +8,8 @@
     "pack": "node examples/pack.mjs",
     "test": "mocha",
     "test/regex": "mocha test/test-regex.mjs",
-    "test/regexp": "mocha test/test-regex.mjs"
-  },
-  "directories": {
-    "example": "examples",
-    "test": "test"
+    "test/regexp": "mocha test/test-regex.mjs",
+    "prepare": "npm run pack"
   },
   "files": [
     "README.md",
@@ -53,6 +50,7 @@
   "license": "ISC",
   "devDependencies": {
     "@types/mocha": "^8.2.0",
-    "@types/node": "^14.14.22"
+    "@types/node": "^14.14.22",
+    "husky": "^6.0.0"
   }
 }

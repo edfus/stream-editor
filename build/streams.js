@@ -1,7 +1,6 @@
-const pipeline = require("stream").pipeline;
+const { pipeline } = require("stream");
 const rw = require("./rw-stream/index.js");
-const _$_ = require("./transform.js");
-const { Transform, NukableTransform } = _$_;
+const { Transform, NukableTransform } = require("./transform.js");
 
 async function process_stream (
   readStream,

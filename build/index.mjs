@@ -1,6 +1,12 @@
 import { process_stream, rw_stream } from "./streams.mjs";
 import { PassThrough, Readable, Writable } from "stream";
 
+const captureGroupPattern = /(?<!\\)\$([1-9]{1,3}|\&|\`|\')/;
+const captureGroupPatternGlobal = new RegExp(captureGroupPattern, "g");
+// is () and not \( \) nor (?<=x) (?<!x) (?=x) (?!x)
+// (?!\?) alone is enough, as /(?/ is an invalid RegExp
+const splitToPCGroupsPattern = /(.*?)(?<!\\)\((?!\?)(.*)(?<!\\)\)(.*)/;
+
 function _getReplaceFunc ( options ) {
   let replace = [];
 
@@ -60,24 +66,28 @@ function _getReplaceFunc ( options ) {
     return EOF ? part : join(part);
   };
   
-  replace = replace.map(({match, search, replacement, full_replacement, limit}) => {
+  replace = replace.map(({ match, search, replacement, full_replacement, limit }) => {
     if(match && !search)
       search = match;
 
     if(!is(search, RegExp, "") || !is(replacement, Function, ""))
-      throw new TypeError(
-        "update-file-content: "
-        + "(search|match) is neither RegExp nor string"
-        + "OR replacement is neither Function nor string"
-      );
+      throw new TypeError([
+        "update-file-content:",
+        `(search|match) '${search}' is neither RegExp nor string`,
+        `OR replacement '${replacement}' is neither Function nor string`
+      ].join(" "));
 
     let rule;
 
     if(typeof search === "string") {
-      full_replacement = true; // must be
+      /**
+       * user who specifying a string search
+       * is definitely expecting a full_replacement
+       */
+      full_replacement = true;
 
       const escapeRegEx = new RegExp(
-        "(" + "[]\^$.|?*+(){}".split("").map(c => "\\".concat(c)).join("|") + ")",
+        "(" + "[]\\^$.|?*+(){}".split("").map(c => "\\".concat(c)).join("|") + ")",
         "g"
       );
 
@@ -85,11 +95,6 @@ function _getReplaceFunc ( options ) {
         source: search.replace(escapeRegEx, "\\$1"),
         flags: "g"
       };
-      
-      if(typeof replacement === "string") {
-        const temp_str = replacement;
-        replacement = () => temp_str;
-      } // make sure replacement is a funciton so that limitation can be applied
     }
     
     /**
@@ -101,34 +106,91 @@ function _getReplaceFunc ( options ) {
     if (!flags.includes("g"))
       flags = "g".concat(flags);
 
-    if(full_replacement || typeof replacement === "function" || /(?<!\\)\$.+/.test(replacement)) {
+    if(!splitToPCGroupsPattern.test(search.source))
+      full_replacement = true;
+
+    if(full_replacement || typeof replacement === "function") {
+      if(typeof replacement === "string") {
+        const temp_str = replacement;
+        replacement = () => temp_str;
+      }
+
       rule = {
         pattern: new RegExp (search.source, flags),
         replacement: replacement
       }
-    } else { // Replace the 1st parenthesized substring match with replacement.
+    } else {
+      // Replace the 1st parenthesized substring match with replacement.
+      
+      const hasPlaceHolder = captureGroupPattern.test(replacement);
+
       rule = {
         pattern: 
           new RegExp (
             search.source // add parentheses for matching substrings exactly,
-              .replace(/(.*?)\((.*)\)(.*)/, "($1)($2)$3"),
+              .replace(splitToPCGroupsPattern, "($1)($2)$3"), // greedy
             flags
           ),
         replacement: 
-          (wholeMatch, prefix, substrMatch) => 
-            wholeMatch.replace(
+          (wholeMatch, prefix, substrMatch, ...rest) => {
+            let _replacement = replacement;
+            if(hasPlaceHolder) {
+              let i = 0;
+              for (; i < rest.length; i++) {
+                // offset parameter
+                if(typeof rest[i] === "number") {
+                  break;
+                }
+              }
+
+              const userDefinedGroups = [substrMatch].concat(rest.slice(0, i));
+              
+              _replacement = _replacement.replace(
+                captureGroupPatternGlobal,
+                $n => {
+                  const n = $n.replace(/^\$/, "");
+                  // Bear in mind that this is a partial match
+                  switch (n) {
+                    case "&":
+                      // Inserts the matched substring.
+                      return substrMatch;
+                    case "`":
+                      // Inserts the portion of the string that precedes the matched substring.
+                      return prefix;
+                    case "'":
+                      // 	Inserts the portion of the string that follows the matched substring.
+                      return wholeMatch.replace(prefix.concat(substrMatch), "");
+                    default:
+                      const i = parseInt(n) - 1;
+                      // a positive integer less than 100, inserts the nth parenthesized submatch string
+                      if(typeof i !== "number" || i >= userDefinedGroups.length || i < 0) {
+                        console.warn(
+                          `\x1b[33m${$n} is not satisfiable for ${wholeMatch} ${userDefinedGroups}`
+                        );
+                        return $n; // as a literal
+                      }
+                      return userDefinedGroups[i];
+                  }
+                }
+              );
+            }
+
+            // using prefix as a hook
+            return wholeMatch.replace(
               prefix.concat(substrMatch),
-              prefix.concat(replacement)
-            ) // using prefix as a hook
+              prefix.concat(_replacement)
+            );
+          }
       }
     }
 
-     // limit
+    // limit
     if(validate(limit, 1) || globalLimit) {
       if(typeof rule.replacement === "function") {
         let counter = 0;
         const funcPtr = rule.replacement;
   
+        //TODO local limitation
         rule.replacement = function (notify, ...args) {
           if(
               ( globalLimit && ++globalCounter >= globalLimit )
@@ -143,9 +205,12 @@ function _getReplaceFunc ( options ) {
         callback.withLimit = true;
         callback.truncate = options.truncate;
       } else {
-        throw new TypeError("update-file-content: received non-function full replacement '"
-                        + rule.replacement
-                        + "' while limit being specified");
+        throw new TypeError([
+          "update-file-content: received non-function",
+          `'${rule.replacement}'`,
+          "while limit being specified.",
+          "This might be a bug."
+        ].join(" "));
       }
     }
 
