@@ -232,7 +232,7 @@ function getReplaceFunction(optionsArray) {
        * make sure replacement is a funciton,
        * as user who specifying a string search
        * is definitely expecting a full_replacement
-       * with configurable limitation.
+       * with configurable limit.
        */
       if(typeof replacement === "string") {
         const temp_str = replacement;

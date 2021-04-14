@@ -129,15 +129,11 @@ function _getReplaceFunc ( options ) {
   
         rule = {
           pattern:
-        pattern: 
-          pattern:
             new RegExp (
               search.source // add parentheses for matching substrings exactly,
                 .replace(splitToPCGroupsPattern, "($1)($2)$3"), // greedy
               flags
             ),
-          replacement:
-        replacement: 
           replacement:
             (wholeMatch, prefix, substrMatch, ...rest) => {
               let _replacement = replacement;
@@ -273,13 +269,13 @@ async function updateFileContent( options ) {
         );
     else throw new TypeError(`updateFileContent: options.file '${options.file}' is invalid.`)
   } else {
-    const readStream = options.readStream || options.from;
-    const writeStream = options.writeStream || options.to;
+    const readableStream = options.readableStream || options.from;
+    const writableStream = options.writableStream || options.to;
 
-    if(validate(readStream, Readable) && validate(writeStream, Writable))
+    if(validate(readableStream, Readable) && validate(writableStream, Writable))
       return process_stream (
-        readStream, 
-        writeStream,
+        readableStream, 
+        writableStream,
         {
           separator, 
           processFunc: replaceFunc, 
@@ -289,7 +285,7 @@ async function updateFileContent( options ) {
           maxLength
         }
       );
-    else throw new TypeError("updateFileContent: options.(readStream|writeStream|from|to) is invalid.")
+    else throw new TypeError("updateFileContent: options.(readableStream|writableStream|from|to) is invalid.")
   }
 }
 
@@ -317,8 +313,8 @@ async function updateFiles ( options ) {
       )
     );
   } else {
-    const from = options.readStream || options.from;
-    const to = options.writeStream || options.to;
+    const from = options.readableStreams || options.readableStream || options.from;
+    const to = options.writableStreams || options.writableStream || options.to;
 
     if(validate(from, Array) && validate(to, Writable)) {
       const sources = from;
@@ -371,21 +367,21 @@ async function updateFiles ( options ) {
 
         return destination;
       } else {
-        throw new TypeError("updateFiles: options.(readStream|from) is not an instance of Array<Readable>");
+        throw new TypeError("updateFiles: options.(readableStreams|from) is not an instance of Array<Readable>");
       }
     } else if(validate(from, Readable) && validate(to, Array)) {
-      const readStream = from;
+      const readableStream = from;
       const dests = to;
 
       if(validate(...dests, Writable)) {
         return process_stream (
-          readStream,
+          readableStream,
           new Writable({
             async write (chunk, encoding, cb) {
               await Promise.all(
-                dests.map(writeStream => 
+                dests.map(writableStream => 
                   new Promise((resolve, reject) => {
-                    writeStream.write(chunk, encoding, resolve)
+                    writableStream.write(chunk, encoding, resolve)
                   }) // .write should never return false
                 )
               );
@@ -394,7 +390,7 @@ async function updateFiles ( options ) {
 
             destroy (err, cb) {
               dests.forEach(
-                writeStream => writeStream.destroy()
+                writableStream => writableStream.destroy()
               );
               return cb(err);
             },
@@ -402,7 +398,7 @@ async function updateFiles ( options ) {
 
             final (cb) {
               dests.forEach(
-                writeStream => writeStream.end()
+                writableStream => writableStream.end()
               );
               return cb();
             }
@@ -417,7 +413,7 @@ async function updateFiles ( options ) {
           }
         ) 
       } else {
-        throw new TypeError("updateFiles: options.(writeStream|to) is not an instance of Array<Writable>");
+        throw new TypeError("updateFiles: options.(writableStreams|to) is not an instance of Array<Writable>");
       }
     }
 

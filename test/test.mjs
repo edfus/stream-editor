@@ -92,7 +92,7 @@ describe("Update files" ,() => {
     let counter = 0;
 
     await updateFiles({
-      readStream: new Readable({
+      readableStream: new Readable({
         highWaterMark: 100,
         read (size) {
           for(let i = 0; i < size; i++) {
@@ -109,7 +109,7 @@ describe("Update files" ,() => {
           }
         }
       }),
-      writeStream: dump$.map(id => 
+      writableStreams: dump$.map(id => 
         createWriteStream(join(__dirname, `./dump${id}`))
       ),
       separator: /(?=,\n)/,
@@ -195,7 +195,7 @@ describe("Update files" ,() => {
 
   it("should update and combine multiple Readable into one Writable", async () => {
     await updateFiles({
-      from: 
+      readableStreams: 
         await fsp.readdir(join(__dirname, "./netflix"), { withFileTypes: true })
           .then(dirents => 
             dirents.filter(dirent => {
@@ -453,15 +453,15 @@ describe("Update files" ,() => {
   
     it("can handle premature stream close", async () => {
       // streams by themselves can only propagate errors up but not down.
-      const writeStream = 
+      const writableStream = 
         createWriteStream(join(__dirname, `./dump${dump_[1]}`))
-            // .once("error", () => logs.push("Event: writeStream errored"))
+            // .once("error", () => logs.push("Event: writableStream errored"))
             // see https://github.com/edfus/update-file-content/runs/1641959273
       ;
   
-      writeStream.destroy = new Proxy(writeStream.destroy, {
+      writableStream.destroy = new Proxy(writableStream.destroy, {
         apply (target, thisArg, argumentsList) {
-          logs.push("Proxy: writeStream.destroy.apply");
+          logs.push("Proxy: writableStream.destroy.apply");
   
           return target.apply(thisArg, argumentsList);
         }
@@ -479,15 +479,15 @@ describe("Update files" ,() => {
                 if(++counter > 10) {
                   logs.push("I will destroy the Readable now");
                   this.destroy();
-                  process.nextTick(() => writeStream.destroyed && logs.push(`nextTick: writeStream.destroyed: true`))
+                  process.nextTick(() => writableStream.destroyed && logs.push(`nextTick: writableStream.destroyed: true`))
                   return ;
                 } else {
                   this.push(`${Math.random()},\n`);
                 }
               }
             }
-          }).once("close", () => logs.push("Event: readStream closed")),
-          to: writeStream,
+          }).once("close", () => logs.push("Event: readableStream closed")),
+          to: writableStream,
           separator: /,/,
           join: "$",
           search: /.$/,
@@ -499,10 +499,10 @@ describe("Update files" ,() => {
         assert.strictEqual(
           [
             "I will destroy the Readable now",
-            "Event: readStream closed",
-            "Proxy: writeStream.destroy.apply",
-            "nextTick: writeStream.destroyed: true",
-            // "Event: writeStream errored",
+            "Event: readableStream closed",
+            "Proxy: writableStream.destroy.apply",
+            "nextTick: writableStream.destroyed: true",
+            // "Event: writableStream errored",
             "catch: Error Premature close"
           ].join(" -> "),
           logs.join(" -> ")
