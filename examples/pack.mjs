@@ -1,5 +1,5 @@
 import { exec, spawn } from "child_process";
-import { createReadStream, createWriteStream, copyFile, existsSync, mkdir, rmSync } from "fs";
+import { createReadStream, createWriteStream, copyFile, existsSync, mkdir } from "fs";
 import { join, extname, dirname } from "path";
 import { updateFileContent } from "../src/index.mjs";
 import { root_directory } from "./helpers/__dirname.mjs";
@@ -155,6 +155,13 @@ const inprogressMkdir = {};
         return resolve();
       });
     });
+  }
+
+  let rmSync;
+  try {
+    rmSync = (await import("fs")).rmSync;
+  } catch (err) {
+    ;
   }
 
   if(typeof rmSync !== "function") {

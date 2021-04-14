@@ -36,8 +36,8 @@ jobs:
           ${{ runner.os }}-build-${{ env.cache-name }}-
           ${{ runner.os }}-build-
           ${{ runner.os }}-
-    - run: npm install
     - run: npm install -g mocha
     - run: npm install -g codecov
     - run: npm install -g c8
+    - run: npm install
     - run: c8 --reporter lcovonly npm test && codecov
