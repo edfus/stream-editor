@@ -256,17 +256,29 @@ describe("Normalize & Replace", () => {
     );
   });
 
-  it("recognize $& $` $'", async () => {
+  it("recognize $& $` $' and check validity (throw warnings)", async () => {
     const { replace: replace_f } = new Replacer({
       match: /\w+$/,
-      replacement: "($`!)$&$$",
+      replacement: "($`!)$&$$$'$999",
       full_replacement: false
       // but should be treated as a full full_replacement
     });
 
     strictEqual(
       await replace_f("huge dinosaur"),
-      "huge dinosaur".replace(/\w+$/, "($`!)$&$$")
+      "huge dinosaur".replace(/\w+$/, "($`!)$&$$$'$999")
+    );
+
+    const { replace: replace_f2 } = new Replacer({
+      match: /\w+$/,
+      replacement: "($'$`!)$&$$$'",
+      full_replacement: false
+      // but should be treated as a full full_replacement
+    });
+
+    strictEqual(
+      await replace_f2("huge dinosaur"),
+      "huge dinosaur".replace(/\w+$/, "($'$`!)$&$$$'")
     );
 
     const { replace: replace_p } = new Replacer({
@@ -275,10 +287,20 @@ describe("Normalize & Replace", () => {
       full_replacement: false
     });
 
-
     strictEqual(
       await replace_p("Attention!!! huge dinosaur goes brrrr!!!"),
       "Attention!!! huge (huge !???) dino$saur goes brrrr!!!"
+    );
+
+    const { replace: replace_p2 } = new Replacer({
+      match: /huge (dino)saur/,
+      replacement: "$$$&$$($'!???)$4 ",
+      full_replacement: false
+    });
+
+    strictEqual(
+      await replace_p2("Attention!!! huge dinosaur goes brrrr!!!"),
+      "Attention!!! huge $dino$(saur!???)$4 saur goes brrrr!!!"
     );
   });
 });

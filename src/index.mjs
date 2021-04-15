@@ -2,12 +2,70 @@ import { process_stream, rw_stream } from "./streams.mjs";
 import { PassThrough, Readable, Writable } from "stream";
 
 let escapeRegEx; // lazy load
-const captureGroupPattern = /(?<!\\)\$([1-9]{1,3}|\&|\`|\')/;
-const captureGroupPatternGlobal = new RegExp(captureGroupPattern, "g");
+const captureGroupPlaceholdersPattern = /(?<!\\)\$([1-9]{1,3}|\&|\`|\')/;
+const captureGroupPlaceholdersPatternGlobal = new RegExp(captureGroupPlaceholdersPattern, "g");
 
 // is () and not \( \) nor (?<=x) (?<!x) (?=x) (?!x)
 // (?!\?) alone is enough, as /(?/ is an invalid RegExp
 const splitToPCGroupsPattern = /(.*?)(?<!\\)\((?!\?)(.*)(?<!\\)\)(.*)/;
+
+function substituteCaptureGroupPlaceholders (target, $and, ...rest) {
+  let i = 0;
+  for (; i < rest.length; i++) {
+    // offset parameter
+    if(typeof rest[i] === "number") {
+      break;
+    }
+  }
+
+  const pArray = rest.slice(0, i);
+  const offset = rest[i];
+  const string = rest[i + 1];
+
+  let parts;
+  return target.replace(
+    captureGroupPlaceholdersPatternGlobal,
+    $n => {
+      const n = $n.replace(/^\$/, "");
+      // Bear in mind that this is a partial match
+      switch (n) {
+        case "&":
+          // Inserts the matched substring.
+          return $and;
+        case "`":
+          // Inserts the portion of the string that precedes the matched substring.
+          if(!parts) {
+            parts = {
+              preceded: string.substring(0, offset),
+              following: string.substring(offset + $and.length, string.length)
+            }
+          }
+          
+          return parts.preceded;
+        case "'":
+          // 	Inserts the portion of the string that follows the matched substring.
+          if(!parts) {
+            parts = {
+              preceded: string.substring(0, offset),
+              following: string.substring(offset + $and.length, string.length)
+            }
+          }
+          
+          return parts.following;
+        default:
+          const i = parseInt(n) - 1;
+          // a positive integer less than 100, inserts the nth parenthesized submatch string
+          if(typeof i !== "number" || i >= pArray.length || i < 0) {
+            console.warn(
+              `\x1b[33m${$n} is not satisfiable for '${$and}' with PCGs [ ${pArray.join(", ")} ]`
+            );
+            return $n; // as a literal
+          }
+          return pArray[i];
+      }
+    }
+  ).replace(/\$\$/g, "$");
+}
 
 function _getReplaceFunc ( options ) {
   let replace = [];
@@ -126,8 +184,12 @@ function _getReplaceFunc ( options ) {
   
       if(full_replacement) {
         if(typeof replacement === "string") {
-          const temp_str = replacement;
-          replacement = () => temp_str;
+          const _replacement = replacement;
+          if(captureGroupPlaceholdersPattern.test(replacement)) {
+            replacement = substituteCaptureGroupPlaceholders.bind(void 0, _replacement);
+          } else {
+            replacement = () => _replacement;
+          }
         }
   
         rule = {
@@ -139,7 +201,7 @@ function _getReplaceFunc ( options ) {
          * Replace the 1st parenthesized substring match with replacement,
          * and that is a so-called partial replacement.
          */
-        const hasPlaceHolder = captureGroupPattern.test(replacement);
+        const hasPlaceHolder = captureGroupPlaceholdersPattern.test(replacement);
         const isFunction     = typeof replacement === "function";
 
         const specialTreatmentNeeded = hasPlaceHolder || isFunction;
@@ -173,7 +235,7 @@ function _getReplaceFunc ( options ) {
                 } else {
                   // has capture group placeHolder
                   _replacement = _replacement.replace(
-                    captureGroupPatternGlobal,
+                    captureGroupPlaceholdersPatternGlobal,
                     $n => {
                       const n = $n.replace(/^\$/, "");
                       // Bear in mind that this is a partial match
@@ -192,7 +254,7 @@ function _getReplaceFunc ( options ) {
                           // a positive integer less than 100, inserts the nth parenthesized submatch string
                           if(typeof i !== "number" || i >= userDefinedGroups.length || i < 0) {
                             console.warn(
-                              `\x1b[33m${$n} is not satisfiable for ${wholeMatch} ${userDefinedGroups}`
+                              `\x1b[33m${$n} is not satisfiable for '${wholeMatch}' with PCGs [ ${userDefinedGroups.join(", ")} ]`
                             );
                             return $n; // as a literal
                           }
