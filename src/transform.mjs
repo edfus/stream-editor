@@ -1,3 +1,4 @@
+import { ok } from "assert";
 import { Transform as Node_Transform } from "stream";
 
 const kSource = Symbol("source");
@@ -72,13 +73,6 @@ class Transform extends Node_Transform {
     );
     return cb();
   }
-
-  // push (string) {
-  //   if(string === null)
-  //     return super.push(null);
-
-  //   return super.push(this.encoder.encode(string));
-  // }
 }
 
 /**
@@ -150,8 +144,7 @@ class NukableTransform extends Transform {
 
           return false;
         } else {
-          // strictEqual(null, args[0]);
-          // strictEqual(1, args.length);
+          ok(!args[0]);
           // https://github.com/nodejs/node/blob/51b43675067fafaad0abd7d4f62a6a5097db5044/lib/internal/streams/transform.js#L159
           return super.push(null);
         }

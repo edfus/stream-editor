@@ -65,10 +65,16 @@ async function process_stream (
 
 
 async function rw_stream(filepath, options) {
-  const { readableStream, writableStream } = await rw(filepath);
+  const { readableStream, writableStream } = await rw(
+    filepath,
+    {
+      readStart: options.readStart,
+      writeStart: options.writeStart
+    }
+  );
 
   return process_stream(readableStream, writableStream, options)
-            .then(() => void 0); // not leaking reference to local writableStream
+            .then(() => void 0); // not leaking the reference to local writableStream
 }
 
 export { rw_stream, process_stream };

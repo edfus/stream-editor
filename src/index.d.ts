@@ -6,7 +6,7 @@ type GlobalLimit = number;
 type LocalLimit = number;
 
 interface BasicReplaceOption {
-  replacement: string | ((wholeMatch: string, ...args: string[]) => string);
+  replacement?: string | ((wholeMatch: string, ...args: string[]) => string);
   full_replacement?: Boolean;
   limit?: LocalLimit;
   /**
@@ -16,19 +16,19 @@ interface BasicReplaceOption {
 }
 
 interface SearchAndReplaceOption extends BasicReplaceOption {
-  search: string | RegExp;
+  search?: string | RegExp;
 }
 
 interface MatchAndReplaceOption extends BasicReplaceOption {
   /**
    * Alias for options.search
    */
-  match: string | RegExp;
+  match?: string | RegExp;
 }
 
 interface MultipleReplacementOption {
-  limit: GlobalLimit;
-  replace: Array<SearchAndReplaceOption | MatchAndReplaceOption>;
+  limit?: GlobalLimit;
+  replace?: Array<SearchAndReplaceOption | MatchAndReplaceOption>;
 }
 
 // An interface can only extend an object type or intersection of object types with statically known members.
@@ -85,6 +85,8 @@ type WritableOrVoid = Writable | void;
 
 interface UpdateFileOptions extends BasicOptions {
   file: string;
+  readStart?: number;
+  writeStart?: number;
 }
 
 // updateFileContent - TransformReadable
@@ -112,6 +114,8 @@ export declare function updateFileContent<T extends WritableOrVoid>(
 
 interface UpdateFilesOptions extends BasicOptions {
   files: string[];
+  readStart?: number;
+  writeStart?: number;
 }
 
 // updateFiles - readables -> writable

@@ -25,8 +25,9 @@ function _getReplaceFunc ( options ) {
       maxTimes: options.maxTimes,
       full_replacement: options.full_replacement
     });
-  } else if(validate(options.limit, 1)) {
-    globalLimit = options.limit;
+  } else {
+    if(validate(options.limit, 1))
+      globalLimit = options.limit;
   }
 
   if(validate(options.replace, Array)) // validation resides in replace.map
@@ -47,11 +48,17 @@ function _getReplaceFunc ( options ) {
       case "undefined": 
         join = part => part;
         break;
+      case "object":
+        if(join_option === null) {
+          join = part => part;
+          break;
+        }
+        /* fall through */
       default: throw new TypeError(
         "update-file-content: options.join '"
         + String(options.join)
         + "' is invalid."
-      )
+      );
     }
   } else {
     join = part => part;
@@ -59,7 +66,8 @@ function _getReplaceFunc ( options ) {
 
   let replaceSet;
   const callback = (part, EOF) => {
-    if(typeof part !== "string") return ""; // For cases like "Adbfdbdafb".split(/(?=([^,\n]+(,\n)?|(,\n)))/)
+    if(typeof part !== "string") 
+      return ""; // For cases like "Adbfdbdafb".split(/(?=([^,\n]+(,\n)?|(,\n)))/)
 
     replaceSet.forEach(rule => {
       part = part.replace(
@@ -80,7 +88,7 @@ function _getReplaceFunc ( options ) {
         throw new TypeError([
           "update-file-content:",
           `(search|match) '${search}' is neither RegExp nor string`,
-          `OR replacement '${replacement}' is neither Function nor string`
+          `OR replacement '${replacement}' is neither Function nor string.`
         ].join(" "));
   
       let rule;
@@ -281,7 +289,9 @@ async function updateFileContent( options ) {
             encoding,
             decodeBuffers,
             truncate,
-            maxLength
+            maxLength,
+            readStart: options.readStart,
+            writeStart: options.writeStart
           }
         );
     else throw new TypeError(`updateFileContent: options.file '${options.file}' is invalid.`)
@@ -324,7 +334,9 @@ async function updateFiles ( options ) {
             encoding,
             decodeBuffers,
             truncate,
-            maxLength
+            maxLength,
+            readStart: options.readStart,
+            writeStart: options.readStart
           }
         )
       )
