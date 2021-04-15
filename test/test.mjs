@@ -1,10 +1,11 @@
 import { updateFileContent, updateFiles } from "../src/index.mjs";
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
-import { PassThrough, Readable } from "stream";
-import { createReadStream, createWriteStream, existsSync, promises as fsp } from "fs";
+
 import assert from "assert";
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { StringDecoder } from "string_decoder";
+import { PassThrough, Readable, Writable } from "stream";
+import { createReadStream, createWriteStream, existsSync, promises as fsp } from "fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -78,14 +79,54 @@ describe("Update files" ,() => {
             replacement: "-"
           },
         ],
-        join: null,
+        join: {},
         limit: 88
       }),
       {
         name: "TypeError",
-        message: "update-file-content: options.join 'null' is invalid."
+        message: "update-file-content: options.join '[object Object]' is invalid."
       }
-    )
+    );
+
+    await assert.rejects(
+      () => updateFileContent({
+        file: "./",
+        readStart: -1,
+        writeStart: 9090,
+        replace: [],
+        limit: 88
+      }),
+      {
+        name: "RangeError",
+        message: "Read index MUST come before write index."
+      }
+    );
+
+    await assert.rejects(
+      () => updateFileContent({
+        file: "./",
+        readStart: -1,
+        writeStart: -200,
+        replace: [],
+        limit: 88
+      }),
+      {
+        name: "RangeError",
+        message: "Negative value is passed as a file operation start index."
+      }
+    );
+
+    await assert.rejects(
+      () => updateFileContent({
+        file: "./",
+        search: {},
+        replacement: /7&/
+      }),
+      {
+        name: "TypeError",
+        message: "update-file-content: (search|match) '[object Object]' is neither RegExp nor string OR replacement '/7&/' is neither Function nor string."
+      }
+    );
   });
 
   it("should pipe one Readable to multiple dumps", async () => {
@@ -115,7 +156,8 @@ describe("Update files" ,() => {
       separator: /(?=,\n)/,
       match: /dum(b)/i,
       replacement: "pling",
-      encoding: "utf-8"
+      encoding: "utf-8",
+      join: null
     });
 
     dump$.forEach(id => assert.ok(existsSync(join(__dirname, `./dump${id}`))));
@@ -143,7 +185,8 @@ describe("Update files" ,() => {
       file: join(__dirname, `./dump${dump$[1]}`),
       search: /((.|\n){15})/,
       replacement: "^^^^^^^1^^^^^^^", // 15
-      limit: 1
+      limit: 1,
+      join: void 0
     });
 
     await updateFileContent({
@@ -275,7 +318,7 @@ describe("Update files" ,() => {
               .then(
                 result => assert.strictEqual(
                   90,
-                  result.match(/\n/g).length
+                  (result.match(/\n/g) || []).length
                 )
               )
 
@@ -446,14 +489,40 @@ describe("Update files" ,() => {
                   result
                 ));
     });
+
+    /**
+     * is having the possibility of getting undefined in split result
+     * a browser-only behaviour (feature)?
+     */
+    it("can handle non-string in regular expression split result", async () => {
+      await updateFileContent({
+        readableStream: new Readable({
+          highWaterMark: 5,
+          read(size) {
+            this.push("Does your dog bite?".repeat(5));
+            this.push(null);
+          }
+        }),
+        writableStream: new Writable({
+          write (chunk, enc, cb) {
+            return cb();
+          }
+        }),
+        separator: /\?/,
+        search: /(?=([^,\n]+(,\n)?|(,\n)))/, 
+        replacement: "cirno gaming"
+      });
+    });
   
-    it("can handle premature stream close", async () => {
+    it("can handle premature stream close when piping", async () => {
       // streams by themselves can only propagate errors up but not down.
       const writableStream = 
         createWriteStream(join(__dirname, `./dump${dump_[1]}`))
             // .once("error", () => logs.push("Event: writableStream errored"))
             // see https://github.com/edfus/update-file-content/runs/1641959273
       ;
+
+      const logs = [];
   
       writableStream.destroy = new Proxy(writableStream.destroy, {
         apply (target, thisArg, argumentsList) {
@@ -461,9 +530,7 @@ describe("Update files" ,() => {
   
           return target.apply(thisArg, argumentsList);
         }
-      })
-  
-      const logs = [];
+      });
   
       let counter = 0;
       try {
@@ -493,6 +560,7 @@ describe("Update files" ,() => {
         logs.push(`catch: Error ${err.message}`);
       } finally {
         assert.strictEqual(
+          logs.join(" -> "),
           [
             "I will destroy the Readable now",
             "Event: readableStream closed",
@@ -500,12 +568,57 @@ describe("Update files" ,() => {
             "nextTick: writableStream.destroyed: true",
             // "Event: writableStream errored",
             "catch: Error Premature close"
-          ].join(" -> "),
-          logs.join(" -> ")
+          ].join(" -> ")
         )
       }
     })
-  })
+  });
+
+  it("can properly destroy streams when error occurred during initialization", async () => {
+    const writableStream = 
+      createWriteStream(join(__dirname, `./dump${dump_[1]}`))
+    ;
+
+    const logs = [];
+
+    writableStream.destroy = new Proxy(writableStream.destroy, {
+      apply (target, thisArg, argumentsList) {
+        logs.push("Proxy: writableStream.destroy.apply");
+
+        return target.apply(thisArg, argumentsList);
+      }
+    });
+
+    try {
+      await updateFileContent({
+        from: new Readable({
+          highWaterMark: 5,
+          read (size) {
+            this.push("honk honk");
+          }
+        }).once("close", () => logs.push("Event: readableStream closed")),
+        to: writableStream,
+        truncate: true,
+        limit: 1,
+        separator: /honk/,
+        join: "honking intensifies",
+        search: /$./,
+        replacement: "",
+        encoding: "A super evil text."
+      });
+    } catch (err) {
+      logs.push(`catch: Error ${err.message}`);
+    } finally {
+      assert.strictEqual(
+        logs.join(" -> "),
+        [
+          "Proxy: writableStream.destroy.apply",
+          "Event: readableStream closed",
+          "catch: Error Unknown encoding: A super evil text."
+        ].join(" -> ")
+      );
+    }
+  });
 
   describe("try-on", () => {
     it("can handle files larger than 16KiB", async () => {
