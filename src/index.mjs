@@ -434,29 +434,40 @@ async function updateFiles ( options ) {
           }
         );
 
-        const lastIndex = resultStreams.length - 1;
+        return new Promise(async (resolve, reject) => {
+          Promise.all(resultPromises).catch(err => {
+            resultStreams.forEach(stream => stream.destroy());
+            destination.end(() => reject(err));
+          })
 
-        try {
-          await resultStreams.reduce(async (frontWorkDone, resultStream, i) => {
-            await frontWorkDone;
-            await new Promise((resolve, reject) => 
-              resultStream
-                .once("error", reject)
-                .once("end", () => {
-                  if(i < lastIndex)  //NOTE: the encoding option
-                    destination.write(contentJoin, encoding, resolve);
-                  else destination.end(resolve);
-                })
-                .pipe(destination, { end: false })
-            )
-          }, void 0);
-          // If initialValue is not provided, reduce() will skip the first index.
-        } catch (err) {
-          resultStreams.forEach(stream => stream.destroy());
-          destination.end(() => { throw err });
-        }
+          const lastIndex = resultStreams.length - 1;
 
-        return destination;
+          try {
+            await resultStreams.reduce(async (frontWorkDone, resultStream, i) => {
+              await frontWorkDone;
+              await new Promise((resolve, reject) => {
+                if(resultStream.destroyed) {
+                  return i < lastIndex ? resolve() : destination.end(resolve)
+                }
+    
+                resultStream
+                  .once("error", reject)
+                  .once("end", () => {
+                    if(i < lastIndex)  //NOTE: the encoding option
+                      destination.write(contentJoin, encoding, resolve);
+                    else destination.end(resolve);
+                  })
+                  .pipe(destination, { end: false })
+                ;
+              });
+            }, void 0); // If initialValue is not provided, reduce() will skip the first index.
+          } catch (err) {
+            resultStreams.forEach(stream => stream.destroy());
+            destination.end(() => reject(err));
+          }
+
+          return resolve(destination);
+        });
       } else {
         throw new TypeError("updateFiles: options.(readableStreams|from) is not an instance of Array<Readable>");
       }
@@ -465,35 +476,51 @@ async function updateFiles ( options ) {
       const dests = to;
 
       if(validate(...dests, Writable)) {
-        return process_stream (
-          readableStream,
-          new Writable({
-            async write (chunk, encoding, cb) {
+        let errored = false;
+
+        const convergeStream = new Writable({
+          async write (chunk, encoding, cb) {
+            try {
               await Promise.all(
                 dests.map(writableStream => 
-                  new Promise((resolve, reject) => {
-                    writableStream.write(chunk, encoding, resolve)
-                  }) // .write should never return false
+                  new Promise((resolve, reject) => 
+                    writableStream.write(chunk, encoding, err => err ? reject(err) : resolve())
+                  )
                 )
               );
-              return cb();
-            },
-
-            destroy (err, cb) {
-              dests.forEach(
-                writableStream => writableStream.destroy()
-              );
-              return cb(err);
-            },
-            autoDestroy: true, // Default: true.
-
-            final (cb) {
-              dests.forEach(
-                writableStream => writableStream.end()
-              );
-              return cb();
+            } catch (err) {
+              if(!errored)
+                return cb(err);
             }
-          }),
+            return cb();
+          },
+          destroy (err, cb) {
+            dests.forEach(
+              writableStream => writableStream.destroy()
+            );
+            return cb(err);
+          },
+          autoDestroy: true, // Default: true.
+          final (cb) {
+            dests.forEach(
+              writableStream => writableStream.end()
+            );
+            return cb();
+          }
+        });
+
+        dests.forEach(
+          writableStream => {
+            writableStream.once("error", err =>{
+              errored = true;
+              return convergeStream.destroy(err);
+            });
+          }
+        );
+        
+        return process_stream (
+          readableStream,
+          convergeStream,
           {
             separator, 
             processFunc: _getReplaceFunc(options),
@@ -502,7 +529,7 @@ async function updateFiles ( options ) {
             truncate,
             maxLength
           }
-        ) 
+        );
       } else {
         throw new TypeError("updateFiles: options.(writableStreams|to) is not an instance of Array<Writable>");
       }

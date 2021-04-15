@@ -146,14 +146,14 @@ describe("Update files" ,() => {
           if(++counter > 90) {
             this.push(null);
           } else {
-            this.push(",\n");
+            this.push(",\r\n");
           }
         }
       }),
       writableStreams: dump$.map(id => 
         createWriteStream(join(__dirname, `./dump${id}`))
       ),
-      separator: /(?=,\n)/,
+      separator: /(?=,\r\n)/,
       match: /dum(b)/i,
       replacement: "pling",
       encoding: "utf-8",
@@ -161,6 +161,15 @@ describe("Update files" ,() => {
     });
 
     dump$.forEach(id => assert.ok(existsSync(join(__dirname, `./dump${id}`))));
+  });
+
+  it("should replace CRLF with LF", async () => {
+    await updateFiles({
+      files: dump$.map(id => join(__dirname, `./dump${id}`)),
+      separator: /\r\n/,
+      join: "\n"
+    });
+    // result checked subsequently by following tests
   });
 
   it("should have replaced /dum(b)/i to dumpling (while preserving dum's case)", async () => {
@@ -469,7 +478,7 @@ describe("Update files" ,() => {
                 );
               });
     })
-  })
+  });
 
   describe("corner cases", () => {
     it("can handle empty content", async () => {
@@ -490,16 +499,123 @@ describe("Update files" ,() => {
                 ));
     });
 
-    /**
-     * is having the possibility of getting undefined in split result
-     * a browser-only behaviour (feature)?
-     */
+    it("updateFiles: can correctly propagate errors emitted by readableStreams", async () => {
+      await assert.rejects(
+        () => updateFiles({
+          readableStreams: new Array(10).fill(
+            new Readable({
+              highWaterMark: 6,
+              read(size) {
+                this.push("Afbdfbdbbdfb".repeat(6));
+                this.destroy(new Error("o"));
+                this.push(null);
+              }
+            }).setMaxListeners(50)
+          ),
+          writableStream: new Writable({
+            write(chunk, enc, cb){
+              return cb();
+            }
+          })
+        }),
+        {
+          name: "Error",
+          message: "o"
+        }
+      );
+    });
+
+    it("updateFiles: can handle prematurely destroyed readableStreams", async () => {
+      await assert.rejects(
+        () => updateFiles({
+          readableStreams: new Array(10).fill(
+            new Readable({
+              highWaterMark: 6,
+              read(size) {
+                this.push("Afbdfbdbbdfb".repeat(6));
+                return this.destroy();
+                /**
+                 * It's recommended that one should always return
+                 * right after invoking Stream#destroy.
+                 * DON'T DO THIS👇
+                 */
+                // this.push(null);
+              }
+            }).setMaxListeners(50)
+          ),
+          writableStream: new Writable({
+            write(chunk, enc, cb){
+              return cb();
+            }
+          })
+        }),
+        {
+          name: "Error",
+          message: "Premature close"
+        }
+      );
+    });
+
+    it("updateFiles: can correctly propagate errors emitted by writableStreams", async () => {
+      await assert.rejects(
+        () => updateFiles({
+          readableStream: new Readable({
+              highWaterMark: 6,
+              read(size) {
+                this.push("Afbdfbdbbdfb".repeat(6));
+                this.push(null);
+              }
+            })
+          ,
+          writableStreams: new Array(10).fill(
+            new Writable({
+              write(chunk, enc, cb) {
+                this.destroy(new Error("o"));
+                return cb();
+              }
+            }).setMaxListeners(50)
+          )
+        }),
+        {
+          name: "Error",
+          message: "o"
+        }
+      );
+    });
+
+    it("updateFiles: can handle prematurely destroyed writableStreams", async () => {
+      await assert.rejects(
+        () => updateFiles({
+          readableStream: new Readable({
+              highWaterMark: 6,
+              read(size) {
+                this.push("Afbdfbdbbdfb".repeat(6));
+                this.push(null);
+              }
+            })
+          ,
+          writableStreams: new Array(10).fill(
+            new Writable({
+              write(chunk, enc, cb) {
+                this.destroy();
+                return cb();
+              }
+            }).setMaxListeners(50)
+          )
+        }),
+        {
+          name: "Error",
+          message: "Cannot call write after a stream was destroyed"
+        }
+      );
+    });
+
     it("can handle non-string in regular expression split result", async () => {
       await updateFileContent({
         readableStream: new Readable({
           highWaterMark: 5,
           read(size) {
-            this.push("Does your dog bite?".repeat(5));
+            this.push("cirno gaming".repeat(5));
             this.push(null);
           }
         }),
@@ -508,9 +624,9 @@ describe("Update files" ,() => {
             return cb();
           }
         }),
-        separator: /\?/,
-        search: /(?=([^,\n]+(,\n)?|(,\n)))/, 
-        replacement: "cirno gaming"
+        separator: /(?=([^,\n]+(,\n)?|(,\n)))/,
+        search: /.*/i,
+        replacement: ""
       });
     });
   
@@ -574,7 +690,7 @@ describe("Update files" ,() => {
     })
   });
 
-  it("can properly destroy streams when error occurred during initialization", async () => {
+  it("can properly destroy streams if errors occurred during initialization", async () => {
     const writableStream = 
       createWriteStream(join(__dirname, `./dump${dump_[1]}`))
     ;
