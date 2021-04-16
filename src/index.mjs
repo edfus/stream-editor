@@ -561,7 +561,7 @@ function validate (...args) {
     case "function": return args.every(arg => arg instanceof should_be);
     case "object": return args.every(arg => typeof arg === "object" && arg.constructor === should_be.constructor);
     case "string": return args.every(arg => typeof arg === "string" && arg.length >= should_be.length);
-    case "number": return args.every(arg => typeof arg === "number" && arg >= should_be);
+    case "number": return args.every(arg => typeof arg === "number" && !isNaN(arg) && arg >= should_be); // comparing NaN with other numbers always returns false, though.
     default: return args.every(arg => typeof arg === type);
   }
 }

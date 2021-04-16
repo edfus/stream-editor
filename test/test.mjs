@@ -119,12 +119,15 @@ describe("Update files" ,() => {
     await assert.rejects(
       () => updateFileContent({
         file: "./",
-        search: {},
-        replacement: /7&/
+        replace: [
+          {
+            search: "dfabdf",
+          }
+        ]
       }),
       {
         name: "TypeError",
-        message: "update-file-content: (search|match) '[object Object]' is neither RegExp nor string OR replacement '/7&/' is neither Function nor string."
+        message: "update-file-content: (search|match) 'dfabdf' is neither RegExp nor string OR replacement 'undefined' is neither Function nor string."
       }
     );
   });

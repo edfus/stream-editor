@@ -202,7 +202,7 @@ describe("Normalize & Replace", () => {
   it("can await replace partially with function", async () => {
     const { replace: replace_str } = new Replacer({
       match: /^().*(\r?\n)/,
-      replacement: `"use strict";$2`,
+      replacement: `"use strict";$2 $&`,
       full_replacement: false,
       maxTimes: 1
     });
@@ -213,7 +213,7 @@ describe("Normalize & Replace", () => {
         strictEqual($and, "");
         strictEqual($and, $1);
         strictEqual(offset, 0);
-        return `"use strict";${$2}`;
+        return `"use strict";${$2} ${$and}`;
       },
       full_replacement: false,
       maxTimes: 1
