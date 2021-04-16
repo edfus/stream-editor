@@ -371,7 +371,8 @@ async function updateFileContent( options ) {
           encoding,
           decodeBuffers,
           truncate,
-          maxLength
+          maxLength,
+          readableObjectMode
         }
       );
     else throw new TypeError("updateFileContent: options.(readableStream|writableStream|from|to) is invalid.")
@@ -478,7 +479,7 @@ async function updateFiles ( options ) {
       if(validate(...dests, Writable)) {
         let errored = false;
 
-        const convergeStream = new Writable({
+        const confluence = new Writable({
           async write (chunk, encoding, cb) {
             try {
               await Promise.all(
@@ -513,14 +514,14 @@ async function updateFiles ( options ) {
           writableStream => {
             writableStream.once("error", err =>{
               errored = true;
-              return convergeStream.destroy(err);
+              return confluence.destroy(err);
             });
           }
         );
         
         return process_stream (
           readableStream,
-          convergeStream,
+          confluence,
           {
             separator, 
             processFunc: _getReplaceFunc(options),

@@ -10,11 +10,13 @@ class Transform extends Node_Transform {
     process,
     decodeBuffers,
     encoding,
-    maxLength 
+    maxLength,
+    readableObjectMode
   }) {
     super({
       decodeStrings: false, // Accept string input
       encoding: encoding,
+      readableObjectMode
     });
 
     this.separator = separator;
