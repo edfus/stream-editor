@@ -498,8 +498,41 @@ describe("Update files" ,() => {
       await fsp.readFile(join(__dirname, `./dump${dump$[3]}`), "utf-8")
                 .then(result => assert.strictEqual(
                   '',
-                  result
-                ));
+
+    it("readableObjectMode", async () => {
+      const filepath = join(__dirname, `./readable-object-mode.ndjson`);
+
+      await updateFileContent({
+        file: filepath,
+        separator: /\r\n/,
+        join: "\n"
+      });
+
+      const results = [];
+
+      await updateFileContent({
+        from: createReadStream(filepath),
+        to: new Writable({
+          objectMode: true,
+          write(chunk, enc, cb) {
+            if(typeof chunk === "object")
+              results.push(JSON.stringify(chunk));
+            return cb();
+          }
+        }),
+        separator: "\n",
+        readableObjectMode: true,
+        postProcessing(part) {
+          if(part.length)
+            return JSON.parse(part);
+          return part;
+        }
+      });
+
+      strictEqual(
+        results.join("\n"),
+        await fsp.readFile(filepath, "utf-8")
+      );
     });
 
     it("updateFiles: can correctly propagate errors emitted by readableStreams", async () => {

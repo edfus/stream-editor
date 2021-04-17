@@ -91,35 +91,48 @@ function _getReplaceFunc ( options ) {
   if(validate(options.replace, Array)) // validation resides in replace.map
     replace = replace.concat(options.replace);
 
-  let join;
-
-  if("join" in options) {
-    const join_option = options.join; // for garbage collection
-
-    switch(typeof join_option) {
-      case "function": 
-        join = options.join;
-        break;
-      case "string":
-        join = part => part.concat(join_option);
-        break;
-      case "undefined": 
-        join = part => part;
-        break;
-      case "object":
-        if(join_option === null) {
-          join = part => part;
-          break;
-        }
-        /* fall through */
-      default: throw new TypeError(
-        "update-file-content: options.join '"
-        + String(options.join)
-        + "' is invalid."
+  let postProcessing;
+  if("post_processing" in options) {
+    if(typeof options.post_processing !== "function") {
+      throw new TypeError(
+        `update-file-conent: non-function '${options.post_processing}' passed as options.post_processing`
       );
     }
+    postProcessing = options.post_processing;
   } else {
-    join = part => part;
+    if("join" in options) {
+      const join_option = options.join; // for garbage collection
+  
+      let join_func;
+      switch(typeof join_option) {
+        case "function": 
+          join_func = options.join;
+          break;
+        case "string":
+          join_func = part => part.concat(join_option);
+          break;
+        case "undefined": 
+          join_func = part => part;
+          break;
+        case "object":
+          if(join_option === null) {
+            join_func = part => part;
+            break;
+          }
+          /* fall through */
+        default: throw new TypeError(
+          "update-file-content: options.join '"
+          + String(options.join)
+          + "' is invalid."
+        );
+      }
+
+      postProcessing = (part, isLastPart) => {
+        return isLastPart ? part : join_func(part);
+      };
+    } else {
+      postProcessing = part => part;
+    }
   }
 
   let replaceSet;
@@ -134,7 +147,7 @@ function _getReplaceFunc ( options ) {
       );
     });
 
-    return EOF ? part : join(part);
+    return postProcessing(part, EOF);
   };
   
   replaceSet = new Set(
@@ -352,8 +365,8 @@ async function updateFileContent( options ) {
             decodeBuffers,
             truncate,
             maxLength,
-            readStart: options.readStart,
-            writeStart: options.writeStart
+            readStart: options.readStart || 0,
+            writeStart: options.writeStart || 0
           }
         );
     else throw new TypeError(`updateFileContent: options.file '${options.file}' is invalid.`)
@@ -363,7 +376,7 @@ async function updateFileContent( options ) {
 
     if(validate(readableStream, Readable) && validate(writableStream, Writable))
       return process_stream (
-        readableStream, 
+        readableStream,
         writableStream,
         {
           separator, 
@@ -372,7 +385,7 @@ async function updateFileContent( options ) {
           decodeBuffers,
           truncate,
           maxLength,
-          readableObjectMode
+          readableObjectMode: options.readableObjectMode || false
         }
       );
     else throw new TypeError("updateFileContent: options.(readableStream|writableStream|from|to) is invalid.")
@@ -398,8 +411,8 @@ async function updateFiles ( options ) {
             decodeBuffers,
             truncate,
             maxLength,
-            readStart: options.readStart,
-            writeStart: options.readStart
+            readStart: options.readStart || 0,
+            writeStart: options.writeStart || 0
           }
         )
       )
@@ -429,7 +442,8 @@ async function updateFiles ( options ) {
                 encoding,
                 decodeBuffers,
                 truncate,
-                maxLength
+                maxLength,
+                readableObjectMode: options.readableObjectMode || false
               }
             );
           }
@@ -528,7 +542,8 @@ async function updateFiles ( options ) {
             encoding,
             decodeBuffers,
             truncate,
-            maxLength
+            maxLength,
+            readableObjectMode: options.readableObjectMode || false
           }
         );
       } else {
