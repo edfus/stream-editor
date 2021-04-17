@@ -81,7 +81,7 @@ function _getReplaceFunc ( options ) {
       replacement: options.replacement,
       limit: options.limit,      // being a local limit
       maxTimes: options.maxTimes,
-      full_replacement: options.full_replacement
+      isFullReplacement: options.isFullReplacement
     });
   } else {
     if(validate(options.limit, 1))
@@ -92,13 +92,13 @@ function _getReplaceFunc ( options ) {
     replace = replace.concat(options.replace);
 
   let postProcessing;
-  if("post_processing" in options) {
-    if(typeof options.post_processing !== "function") {
+  if("postProcessing" in options) {
+    if(typeof options.postProcessing !== "function") {
       throw new TypeError(
-        `update-file-conent: non-function '${options.post_processing}' passed as options.post_processing`
+        `update-file-conent: non-function '${options.postProcessing}' passed as options.postProcessing`
       );
     }
-    postProcessing = options.post_processing;
+    postProcessing = options.postProcessing;
   } else {
     if("join" in options) {
       const join_option = options.join; // for garbage collection
@@ -151,7 +151,7 @@ function _getReplaceFunc ( options ) {
   };
   
   replaceSet = new Set(
-    replace.map(({ match, search, replacement, full_replacement, limit, maxTimes }) => {
+    replace.map(({ match, search, replacement, isFullReplacement, limit, maxTimes }) => {
       if(match && !search)
         search = match;
   
@@ -167,9 +167,9 @@ function _getReplaceFunc ( options ) {
       if(typeof search === "string") {
         /**
          * user who specifying a string search
-         * is definitely expecting a full_replacement
+         * is definitely expecting a isFullReplacement
          */
-        full_replacement = true;
+        isFullReplacement = true;
   
         if(!escapeRegEx)
           escapeRegEx = new RegExp(
@@ -192,10 +192,10 @@ function _getReplaceFunc ( options ) {
       if (!flags.includes("g"))
         flags = "g".concat(flags);
   
-      if(!full_replacement && !splitToPCGroupsPattern.test(search.source))
-        full_replacement = true;
+      if(!isFullReplacement && !splitToPCGroupsPattern.test(search.source))
+        isFullReplacement = true;
   
-      if(full_replacement) {
+      if(isFullReplacement) {
         if(typeof replacement === "string") {
           const _replacement = replacement;
           if(captureGroupPlaceholdersPattern.test(replacement)) {

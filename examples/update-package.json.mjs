@@ -48,7 +48,7 @@ Promise.all(
                 prefix.concat(nums.join("."))
               );
             },
-            full_replacement: true
+            isFullReplacement: true
           }
         ],
         separator: null // null: execute matching on the whole file

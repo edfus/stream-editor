@@ -27,7 +27,7 @@ interface BasicReplaceOption {
    * A RegExp search without capture groups or a search in string will be
    * treated as a full replacement silently.
    */
-  full_replacement?: Boolean;
+  isFullReplacement?: Boolean;
   /**
    * Apply restriction on certain search's maximum executed times.
    * 
@@ -176,6 +176,22 @@ interface BasicOptions extends ReplaceOptions {
    * Default: Infinity.
    */
   maxLength?: number;
+  /**
+   * Correspondence: readableObjectMode option of Node.js stream.Transform
+   * 
+   * Options writableObjectMode and objectMode are not supported.
+   * 
+   * Default: Infinity.
+   */
+  readableObjectMode?: boolean;
+  /**
+   * A post-processing function that consumes transformed strings and returns a
+   * string or a Buffer. This option has higher priority over option `join`.
+   * 
+   * If readableObjectMode is enabled, any object accepted by Node.js objectMode
+   * streams can be returned.
+   */
+  postProcessing: (part: string, isLastPart: boolean) => any
 }
 
 type WritableOrVoid = Writable | void;

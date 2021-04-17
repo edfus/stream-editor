@@ -40,35 +40,35 @@ const replacements = {
     {
       match: matchParentFolderImport(/(src\/(.+?))/),
       replacement: "build/$2",
-      full_replacement: false
+      isFullReplacement: false
     },
     {
       match: matchCurrentFolderImport(`((.+?)${mjs.from.replace(".", "\\.")})`),
       replacement: "$2".concat(mjs.toCJSTest),
-      full_replacement: false
+      isFullReplacement: false
     },
     {
       match: /\r?\n?const\s+__dirname\s+=\s+dirname\(\s*fileURLToPath\(\s*import\.meta\.url\s*\)\s*\);?\r?\n?/,
       replacement: "",
-      full_replacement: true
+      isFullReplacement: true
     }
   ],
   commonReplace: [
     {
       match: /^().*(\r?\n)/,
       replacement: `"use strict";$2`,
-      full_replacement: false,
+      isFullReplacement: false,
       maxTimes: 1
     },
     {
       match: matchImport(`((.+?)${mjs.from.replace(".", "\\.")})`),
       replacement: "$2".concat(mjs.toCJS),
-      full_replacement: false
+      isFullReplacement: false
     },
     {
       search: matchDynamicImport(`['"]((.+?)${mjs.from.replace(".", "\\.")})['"]`),
       replacement: "$2".concat(mjs.toCJS),
-      full_replacement: false
+      isFullReplacement: false
     },
     // default import
     { 
@@ -77,7 +77,7 @@ const replacements = {
         // debugger;
         return `const ${$1} = require("${$2}");`
       } ,
-      full_replacement: true
+      isFullReplacement: true
     },
     // named import with or without renaming
     { 
@@ -86,7 +86,7 @@ const replacements = {
         namedImports = namedImports.replace(/\s+as\s+/g, ": ");
         return `const { ${namedImports} } = require("${moduleName}");`;
       },
-      full_replacement: true
+      isFullReplacement: true
     },
     // dynamic import
     {
@@ -95,19 +95,19 @@ const replacements = {
         // debugger;
         return `require(${$1})`
       },
-      full_replacement: true
+      isFullReplacement: true
     },
     // named export
     {
       search: /(export)\s*\{.+?\};?/,
       replacement: "module.exports =",
-      full_replacement: false
+      isFullReplacement: false
     },
     // default export
     {
       search: /export\s*default/,
       replacement: "module.exports =",
-      full_replacement: true
+      isFullReplacement: true
     }
   ]
 };

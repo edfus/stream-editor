@@ -62,12 +62,12 @@ describe("Normalize & Replace", () => {
         {
           match: /import\s+.+\s+from\s*['"]\.\.\/((.+?)\.m?js)['"];?/,
           replacement: "build/$2.cjs",
-          full_replacement: false
+          isFullReplacement: false
         },
         {
           match: /import\s+.+\s+from\s*['"]\.\/((.+?)\.m?js)['"];?/,
           replacement: "$2.cjs",
-          full_replacement: false
+          isFullReplacement: false
         }
       ]
     });
@@ -98,7 +98,7 @@ describe("Normalize & Replace", () => {
     const { replace } = new Replacer({
       match: /(?<=im-a-capture-group)(, wh(.+?)) are you/,
       replacement: ". Wh$2",
-      full_replacement: false
+      isFullReplacement: false
     });
 
     strictEqual(
@@ -114,7 +114,7 @@ describe("Normalize & Replace", () => {
     const { replace: replace_$2 } = new Replacer({
       match: /(?<!Is T)(im-a(-capture-group))/,
       replacement: "we-are$2s",
-      full_replacement: false
+      isFullReplacement: false
     });
 
     strictEqual(
@@ -130,7 +130,7 @@ describe("Normalize & Replace", () => {
     const { replace: replace_$and } = new Replacer({
       match: /Is T(?!im-a-capture-group) (ok)\?/,
       replacement: "(k|$1|$&k)",
-      full_replacement: false
+      isFullReplacement: false
     });
 
     strictEqual(
@@ -146,7 +146,7 @@ describe("Normalize & Replace", () => {
     const { replace: replace_lookbehind } = new Replacer({
       match: /Is T(?=enshi).+()/,
       replacement: " Yes, it is.",
-      full_replacement: false
+      isFullReplacement: false
     });
 
     strictEqual(
@@ -164,7 +164,7 @@ describe("Normalize & Replace", () => {
     const { replace } = new Replacer({
       match: /22\(abdfgbafdb\)u2e2(1342)/,
       replacement: "gggggggggggggg",
-      full_replacement: false
+      isFullReplacement: false
     });
 
     strictEqual(
@@ -177,7 +177,7 @@ describe("Normalize & Replace", () => {
     const { replace } = new Replacer({
       match: /(abdfgbafdb)u2e2(1342)/,
       replacement: "gggggggggggggg",
-      full_replacement: false
+      isFullReplacement: false
     });
 
     strictEqual(
@@ -190,7 +190,7 @@ describe("Normalize & Replace", () => {
     const { replace } = new Replacer({
       match: /ge \w+$/,
       replacement: "g dino",
-      full_replacement: false
+      isFullReplacement: false
     });
 
     strictEqual(
@@ -203,7 +203,7 @@ describe("Normalize & Replace", () => {
     const { replace: replace_str } = new Replacer({
       match: /^().*(\r?\n)/,
       replacement: `"use strict";$2 $&`,
-      full_replacement: false,
+      isFullReplacement: false,
       maxTimes: 1
     });
 
@@ -215,7 +215,7 @@ describe("Normalize & Replace", () => {
         strictEqual(offset, 0);
         return `"use strict";${$2} ${$and}`;
       },
-      full_replacement: false,
+      isFullReplacement: false,
       maxTimes: 1
     });
 
@@ -228,7 +228,7 @@ describe("Normalize & Replace", () => {
     const { replace: replace_str_m } = new Replacer({
       match: /^\w{3}logue: ((Pleasure to see you), (invisible friend)!(.*$))/,
       replacement: `"$2"... whoever you are.$4 - $3.`,
-      full_replacement: false,
+      isFullReplacement: false,
       maxTimes: 1
     });
 
@@ -239,7 +239,7 @@ describe("Normalize & Replace", () => {
         strictEqual(offset, 10);
         return `"${$2}"... whoever you are.${$4} - ${$3}.`;
       },
-      full_replacement: false,
+      isFullReplacement: false,
       maxTimes: 1
     });
 
@@ -260,8 +260,8 @@ describe("Normalize & Replace", () => {
     const { replace: replace_f } = new Replacer({
       match: /\w+$/,
       replacement: "($`!)$&$$$'$999",
-      full_replacement: false
-      // but should be treated as a full full_replacement
+      isFullReplacement: false
+      // but should be treated as a full isFullReplacement
     });
 
     strictEqual(
@@ -272,8 +272,8 @@ describe("Normalize & Replace", () => {
     const { replace: replace_f2 } = new Replacer({
       match: /\w+$/,
       replacement: "($'$`!)$&$$$'",
-      full_replacement: false
-      // but should be treated as a full full_replacement
+      isFullReplacement: false
+      // but should be treated as a full isFullReplacement
     });
 
     strictEqual(
@@ -284,7 +284,7 @@ describe("Normalize & Replace", () => {
     const { replace: replace_p } = new Replacer({
       match: /huge (dino)saur/,
       replacement: "($`!???) $&$$",
-      full_replacement: false
+      isFullReplacement: false
     });
 
     strictEqual(
@@ -295,7 +295,7 @@ describe("Normalize & Replace", () => {
     const { replace: replace_p2 } = new Replacer({
       match: /huge (dino)saur/,
       replacement: "$$$&$$($'!???)$4 ",
-      full_replacement: false
+      isFullReplacement: false
     });
 
     strictEqual(
