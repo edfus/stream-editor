@@ -233,7 +233,7 @@ See <https://github.com/edfus/update-file-content/tree/master/test>.
 
   Update files
     √ should check arguments
-    √ should pipe one Readable to multiple dumps (55ms)
+    √ should pipe one Readable to multiple dumps (52ms)
     √ should replace CRLF with LF
     √ should have replaced /dum(b)/i to dumpling (while preserving dum's case)
     √ should have global and local limitations in replacement amount
@@ -260,7 +260,7 @@ See <https://github.com/edfus/update-file-content/tree/master/test>.
       √ can handle files larger than 16KiB
 
 
-  30 passing (298ms)
+  30 passing (244ms)
 
 ```
 

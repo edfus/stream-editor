@@ -2,12 +2,70 @@ import { process_stream, rw_stream } from "./streams.mjs";
 import { PassThrough, Readable, Writable } from "stream";
 
 let escapeRegEx; // lazy load
-const captureGroupPattern = /(?<!\\)\$([1-9]{1,3}|\&|\`|\')/;
-const captureGroupPatternGlobal = new RegExp(captureGroupPattern, "g");
+const captureGroupPlaceholdersPattern = /(?<!\\)\$([1-9]{1,3}|\&|\`|\')/;
+const captureGroupPlaceholdersPatternGlobal = new RegExp(captureGroupPlaceholdersPattern, "g");
 
 // is () and not \( \) nor (?<=x) (?<!x) (?=x) (?!x)
 // (?!\?) alone is enough, as /(?/ is an invalid RegExp
 const splitToPCGroupsPattern = /(.*?)(?<!\\)\((?!\?)(.*)(?<!\\)\)(.*)/;
+
+function substituteCaptureGroupPlaceholders (target, $and, ...rest) {
+  let i = 0;
+  for (; i < rest.length; i++) {
+    // offset parameter
+    if(typeof rest[i] === "number") {
+      break;
+    }
+  }
+
+  const pArray = rest.slice(0, i);
+  const offset = rest[i];
+  const string = rest[i + 1];
+
+  let parts;
+  return target.replace(
+    captureGroupPlaceholdersPatternGlobal,
+    $n => {
+      const n = $n.replace(/^\$/, "");
+      // Bear in mind that this is a partial match
+      switch (n) {
+        case "&":
+          // Inserts the matched substring.
+          return $and;
+        case "`":
+          // Inserts the portion of the string that precedes the matched substring.
+          if(!parts) {
+            parts = {
+              preceded: string.substring(0, offset),
+              following: string.substring(offset + $and.length, string.length)
+            }
+          }
+          
+          return parts.preceded;
+        case "'":
+          // 	Inserts the portion of the string that follows the matched substring.
+          if(!parts) {
+            parts = {
+              preceded: string.substring(0, offset),
+              following: string.substring(offset + $and.length, string.length)
+            }
+          }
+          
+          return parts.following;
+        default:
+          const i = parseInt(n) - 1;
+          // a positive integer less than 100, inserts the nth parenthesized submatch string
+          if(typeof i !== "number" || i >= pArray.length || i < 0) {
+            console.warn(
+              `\x1b[33m${$n} is not satisfiable for '${$and}' with PCGs [ ${pArray.join(", ")} ]`
+            );
+            return $n; // as a literal
+          }
+          return pArray[i];
+      }
+    }
+  ).replace(/\$\$/g, "$");
+}
 
 function _getReplaceFunc ( options ) {
   let replace = [];
@@ -23,43 +81,65 @@ function _getReplaceFunc ( options ) {
       replacement: options.replacement,
       limit: options.limit,      // being a local limit
       maxTimes: options.maxTimes,
-      full_replacement: options.full_replacement
+      isFullReplacement: options.isFullReplacement,
+      disablePlaceholders: options.disablePlaceholders
     });
-  } else if(validate(options.limit, 1)) {
-    globalLimit = options.limit;
+  } else {
+    if(validate(options.limit, 1))
+      globalLimit = options.limit;
   }
 
   if(validate(options.replace, Array)) // validation resides in replace.map
     replace = replace.concat(options.replace);
 
-  let join;
-
-  if("join" in options) {
-    const join_option = options.join; // for garbage collection
-
-    switch(typeof join_option) {
-      case "function": 
-        join = options.join;
-        break;
-      case "string":
-        join = part => part.concat(join_option);
-        break;
-      case "undefined": 
-        join = part => part;
-        break;
-      default: throw new TypeError(
-        "update-file-content: options.join '"
-        + String(options.join)
-        + "' is invalid."
-      )
+  let postProcessing;
+  if("postProcessing" in options) {
+    if(typeof options.postProcessing !== "function") {
+      throw new TypeError(
+        `update-file-conent: non-function '${options.postProcessing}' passed as options.postProcessing`
+      );
     }
+    postProcessing = options.postProcessing;
   } else {
-    join = part => part;
+    if("join" in options) {
+      const join_option = options.join; // for garbage collection
+  
+      let join_func;
+      switch(typeof join_option) {
+        case "function": 
+          join_func = options.join;
+          break;
+        case "string":
+          join_func = part => part.concat(join_option);
+          break;
+        case "undefined": 
+          join_func = part => part;
+          break;
+        case "object":
+          if(join_option === null) {
+            join_func = part => part;
+            break;
+          }
+          /* fall through */
+        default: throw new TypeError(
+          "update-file-content: options.join '"
+          + String(options.join)
+          + "' is invalid."
+        );
+      }
+
+      postProcessing = (part, isLastPart) => {
+        return isLastPart ? part : join_func(part);
+      };
+    } else {
+      postProcessing = part => part;
+    }
   }
 
   let replaceSet;
   const callback = (part, EOF) => {
-    if(typeof part !== "string") return ""; // For cases like "Adbfdbdafb".split(/(?=([^,\n]+(,\n)?|(,\n)))/)
+    if(typeof part !== "string") 
+      return ""; // For cases like "Adbfdbdafb".split(/(?=([^,\n]+(,\n)?|(,\n)))/)
 
     replaceSet.forEach(rule => {
       part = part.replace(
@@ -68,11 +148,11 @@ function _getReplaceFunc ( options ) {
       );
     });
 
-    return EOF ? part : join(part);
+    return postProcessing(part, EOF);
   };
   
   replaceSet = new Set(
-    replace.map(({ match, search, replacement, full_replacement, limit, maxTimes }) => {
+    replace.map(({ match, search, replacement, isFullReplacement, limit, maxTimes, disablePlaceholders }) => {
       if(match && !search)
         search = match;
   
@@ -80,7 +160,7 @@ function _getReplaceFunc ( options ) {
         throw new TypeError([
           "update-file-content:",
           `(search|match) '${search}' is neither RegExp nor string`,
-          `OR replacement '${replacement}' is neither Function nor string`
+          `OR replacement '${replacement}' is neither Function nor string.`
         ].join(" "));
   
       let rule;
@@ -88,9 +168,9 @@ function _getReplaceFunc ( options ) {
       if(typeof search === "string") {
         /**
          * user who specifying a string search
-         * is definitely expecting a full_replacement
+         * is definitely expecting a isFullReplacement
          */
-        full_replacement = true;
+        isFullReplacement = true;
   
         if(!escapeRegEx)
           escapeRegEx = new RegExp(
@@ -113,28 +193,32 @@ function _getReplaceFunc ( options ) {
       if (!flags.includes("g"))
         flags = "g".concat(flags);
   
-      if(!full_replacement && !splitToPCGroupsPattern.test(search.source))
-        full_replacement = true;
+      if(!isFullReplacement && !splitToPCGroupsPattern.test(search.source))
+        isFullReplacement = true;
   
-      if(full_replacement) {
+      if(isFullReplacement) {
         if(typeof replacement === "string") {
-          const temp_str = replacement;
-          replacement = () => temp_str;
+          const _replacement = replacement;
+          if(!disablePlaceholders && captureGroupPlaceholdersPattern.test(replacement)) {
+            replacement = substituteCaptureGroupPlaceholders.bind(void 0, _replacement);
+          } else {
+            replacement = () => _replacement;
+          }
         }
   
         rule = {
           pattern: new RegExp (search.source, flags),
           replacement: replacement
-        }
+        };
       } else {
         /**
          * Replace the 1st parenthesized substring match with replacement,
          * and that is a so-called partial replacement.
          */
-        const hasPlaceHolder = captureGroupPattern.test(replacement);
+        const hasPlaceHolder = !disablePlaceholders && captureGroupPlaceholdersPattern.test(replacement);
         const isFunction     = typeof replacement === "function";
 
-        const specialTreatmentNeeded = hasPlaceHolder || isFunction;
+        const specialTreatmentNeeded = !disablePlaceholders && ( hasPlaceHolder || isFunction );
 
         rule = {
           pattern: 
@@ -165,7 +249,7 @@ function _getReplaceFunc ( options ) {
                 } else {
                   // has capture group placeHolder
                   _replacement = _replacement.replace(
-                    captureGroupPatternGlobal,
+                    captureGroupPlaceholdersPatternGlobal,
                     $n => {
                       const n = $n.replace(/^\$/, "");
                       // Bear in mind that this is a partial match
@@ -184,7 +268,7 @@ function _getReplaceFunc ( options ) {
                           // a positive integer less than 100, inserts the nth parenthesized submatch string
                           if(typeof i !== "number" || i >= userDefinedGroups.length || i < 0) {
                             console.warn(
-                              `\x1b[33m${$n} is not satisfiable for ${wholeMatch} ${userDefinedGroups}`
+                              `\x1b[33m${$n} is not satisfiable for '${wholeMatch}' with PCGs [ ${userDefinedGroups.join(", ")} ]`
                             );
                             return $n; // as a literal
                           }
@@ -195,10 +279,17 @@ function _getReplaceFunc ( options ) {
                 }
               }
 
+              let replacmentWithPrecededPart;
+              if(disablePlaceholders) {
+                replacmentWithPrecededPart = () => precededPart.concat(_replacement);
+              } else {
+                replacmentWithPrecededPart = precededPart.concat(_replacement);
+              }
+
               // using precededPart as a hook
               return wholeMatch.replace(
                 precededPart.concat(substrMatch),
-                precededPart.concat(_replacement)
+                replacmentWithPrecededPart
               );
             }
         }
@@ -266,9 +357,9 @@ function _getReplaceFunc ( options ) {
 async function updateFileContent( options ) {
   const replaceFunc = _getReplaceFunc(options);
   const separator = "separator" in options ? options.separator : /(?<=\r?\n)/;
-  const encoding = options.encoding || null;
+  const encoding  = options.encoding || null;
   const decodeBuffers = options.decodeBuffers || "utf8";
-  const truncate = "truncate" in options ? options.truncate : false;
+  const truncate  = Boolean(options.truncate);
   const maxLength = options.maxLength || Infinity;
 
   if("file" in options) {
@@ -281,7 +372,9 @@ async function updateFileContent( options ) {
             encoding,
             decodeBuffers,
             truncate,
-            maxLength
+            maxLength,
+            readStart: options.readStart || 0,
+            writeStart: options.writeStart || 0
           }
         );
     else throw new TypeError(`updateFileContent: options.file '${options.file}' is invalid.`)
@@ -291,7 +384,7 @@ async function updateFileContent( options ) {
 
     if(validate(readableStream, Readable) && validate(writableStream, Writable))
       return process_stream (
-        readableStream, 
+        readableStream,
         writableStream,
         {
           separator, 
@@ -299,7 +392,8 @@ async function updateFileContent( options ) {
           encoding,
           decodeBuffers,
           truncate,
-          maxLength
+          maxLength,
+          readableObjectMode: options.readableObjectMode || false
         }
       );
     else throw new TypeError("updateFileContent: options.(readableStream|writableStream|from|to) is invalid.")
@@ -308,9 +402,9 @@ async function updateFileContent( options ) {
 
 async function updateFiles ( options ) {
   const separator = "separator" in options ? options.separator : /(?<=\r?\n)/;
-  const encoding = options.encoding || null;
+  const encoding  = options.encoding || null;
   const decodeBuffers = options.decodeBuffers || "utf8";
-  const truncate = "truncate" in options ? options.truncate : false;
+  const truncate  = Boolean(options.truncate);
   const maxLength = options.maxLength || Infinity;
 
   if(validate(options.files, Array) && validate(...options.files, ".")) {
@@ -324,7 +418,9 @@ async function updateFiles ( options ) {
             encoding,
             decodeBuffers,
             truncate,
-            maxLength
+            maxLength,
+            readStart: options.readStart || 0,
+            writeStart: options.writeStart || 0
           }
         )
       )
@@ -354,35 +450,47 @@ async function updateFiles ( options ) {
                 encoding,
                 decodeBuffers,
                 truncate,
-                maxLength
+                maxLength,
+                readableObjectMode: options.readableObjectMode || false
               }
             );
           }
         );
 
-        const lastIndex = resultStreams.length - 1;
+        return new Promise(async (resolve, reject) => {
+          Promise.all(resultPromises).catch(err => {
+            resultStreams.forEach(stream => stream.destroy());
+            destination.end(() => reject(err));
+          })
 
-        try {
-          await resultStreams.reduce(async (frontWorkDone, resultStream, i) => {
-            await frontWorkDone;
-            await new Promise((resolve, reject) => 
-              resultStream
-                .once("error", reject)
-                .once("end", () => {
-                  if(i < lastIndex)  //NOTE: the encoding option
-                    destination.write(contentJoin, encoding, resolve);
-                  else destination.end(resolve);
-                })
-                .pipe(destination, { end: false })
-            )
-          }, void 0);
-          // If initialValue is not provided, reduce() will skip the first index.
-        } catch (err) {
-          resultStreams.forEach(stream => stream.destroy());
-          destination.end(() => { throw err });
-        }
+          const lastIndex = resultStreams.length - 1;
 
-        return destination;
+          try {
+            await resultStreams.reduce(async (frontWorkDone, resultStream, i) => {
+              await frontWorkDone;
+              await new Promise((resolve, reject) => {
+                if(resultStream.destroyed) {
+                  return i < lastIndex ? resolve() : destination.end(resolve)
+                }
+    
+                resultStream
+                  .once("error", reject)
+                  .once("end", () => {
+                    if(i < lastIndex)  //NOTE: the encoding option
+                      destination.write(contentJoin, encoding, resolve);
+                    else destination.end(resolve);
+                  })
+                  .pipe(destination, { end: false })
+                ;
+              });
+            }, void 0); // If initialValue is not provided, reduce() will skip the first index.
+          } catch (err) {
+            resultStreams.forEach(stream => stream.destroy());
+            destination.end(() => reject(err));
+          }
+
+          return resolve(destination);
+        });
       } else {
         throw new TypeError("updateFiles: options.(readableStreams|from) is not an instance of Array<Readable>");
       }
@@ -391,44 +499,61 @@ async function updateFiles ( options ) {
       const dests = to;
 
       if(validate(...dests, Writable)) {
-        return process_stream (
-          readableStream,
-          new Writable({
-            async write (chunk, encoding, cb) {
+        let errored = false;
+
+        const confluence = new Writable({
+          async write (chunk, encoding, cb) {
+            try {
               await Promise.all(
                 dests.map(writableStream => 
-                  new Promise((resolve, reject) => {
-                    writableStream.write(chunk, encoding, resolve)
-                  }) // .write should never return false
+                  new Promise((resolve, reject) => 
+                    writableStream.write(chunk, encoding, err => err ? reject(err) : resolve())
+                  )
                 )
               );
-              return cb();
-            },
-
-            destroy (err, cb) {
-              dests.forEach(
-                writableStream => writableStream.destroy()
-              );
-              return cb(err);
-            },
-            autoDestroy: true, // Default: true.
-
-            final (cb) {
-              dests.forEach(
-                writableStream => writableStream.end()
-              );
-              return cb();
+            } catch (err) {
+              if(!errored)
+                return cb(err);
             }
-          }),
+            return cb();
+          },
+          destroy (err, cb) {
+            dests.forEach(
+              writableStream => writableStream.destroy()
+            );
+            return cb(err);
+          },
+          autoDestroy: true, // Default: true.
+          final (cb) {
+            dests.forEach(
+              writableStream => writableStream.end()
+            );
+            return cb();
+          }
+        });
+
+        dests.forEach(
+          writableStream => {
+            writableStream.once("error", err =>{
+              errored = true;
+              return confluence.destroy(err);
+            });
+          }
+        );
+        
+        return process_stream (
+          readableStream,
+          confluence,
           {
             separator, 
             processFunc: _getReplaceFunc(options),
             encoding,
             decodeBuffers,
             truncate,
-            maxLength
+            maxLength,
+            readableObjectMode: options.readableObjectMode || false
           }
-        ) 
+        );
       } else {
         throw new TypeError("updateFiles: options.(writableStreams|to) is not an instance of Array<Writable>");
       }
@@ -460,7 +585,7 @@ function validate (...args) {
     case "function": return args.every(arg => arg instanceof should_be);
     case "object": return args.every(arg => typeof arg === "object" && arg.constructor === should_be.constructor);
     case "string": return args.every(arg => typeof arg === "string" && arg.length >= should_be.length);
-    case "number": return args.every(arg => typeof arg === "number" && arg >= should_be);
+    case "number": return args.every(arg => typeof arg === "number" && !isNaN(arg) && arg >= should_be); // comparing NaN with other numbers always returns false, though.
     default: return args.every(arg => typeof arg === type);
   }
 }

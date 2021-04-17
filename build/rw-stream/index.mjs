@@ -1,21 +1,28 @@
 //CREDIT: https://github.com/signicode/rw-stream
 
+import { strictEqual } from "assert";
 import { promises as fsp } from "fs";
 import { Readable, Writable } from "stream";
 
 const { open } = fsp;
 
 export default (async (file, { readStart, writeStart } = {}) => {
-  const fd = await open(file, "r+");
+  let readIndex  = Number(readStart) || 0;  // NaN -> 0
+  let writeIndex = Number(writeStart) || 0; // NaN -> 0
 
-  let readIndex = +readStart || 0;
-  let writeIndex = +writeStart || 0;
-
-  if(isNaN(readIndex) || isNaN(writeIndex))
-    throw new TypeError("Read index or write index is NOT A NUMBER");   
+  /**
+   * verbose type check
+   */
+  if(typeof readIndex !== "number" || typeof writeIndex !== "number")
+    throw new TypeError("Read index or write index is NOT A NUMBER.");   
 
   if (readStart < writeStart) 
     throw new RangeError("Read index MUST come before write index.");
+  
+  if (readStart < 0 || writeStart < 0) 
+    throw new RangeError("Negative value is passed as a file operation start index.");
+
+  const fd = await open(file, "r+");
 
   let nextReadingDone = {
     promise: null,
@@ -30,7 +37,8 @@ export default (async (file, { readStart, writeStart } = {}) => {
       nextReadingDone.promise = new Promise (
         emit => nextReadingDone._emit = emit
       );
-    } else { // EOF
+    } else {
+      // EOF
       readIndex = Infinity;
     }
 
@@ -45,7 +53,10 @@ export default (async (file, { readStart, writeStart } = {}) => {
 
         advanceReadPosition(bytesRead);
 
-        if (bytesRead === 0) // EOF
+        /**
+         * the end-of-file is reached when the number of bytes read is zero
+         */
+        if (bytesRead === 0)
           return this.push(null);
 
         this.push(buffer.slice(0, bytesRead));
@@ -53,11 +64,14 @@ export default (async (file, { readStart, writeStart } = {}) => {
         this.destroy(err);
       }
     }
-  }).on("error", fd.close);
+  }).once("error", fd.close);
 
   const writableStream = new Writable({
     async write(chunk, encoding, callback) {
       try {
+        /**
+         * Switch an existing stream into object mode is possible, though not safe.
+         */
         const toWrite = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding);
         
         if(toWrite.length <= 0)
@@ -65,42 +79,47 @@ export default (async (file, { readStart, writeStart } = {}) => {
         
         let totalBytesWritten = 0;
 
-        while (true) { /* eslint-disable-line no-constant-condition */
+        while (totalBytesWritten < toWrite.length) {
           const writeLength = Math.min (
+            /**
+             * Left available space.
+             * readIndex will become Infinity once EOF is reached
+             */
             readIndex - (writeIndex + totalBytesWritten), 
-            // left available space, will become Infinity
-            // once EOF was encountered while reading
-            toWrite.length - totalBytesWritten // bytes not written yet
+            /**
+             * length of bytes not written yet
+             */
+            toWrite.length - totalBytesWritten
           );
 
-          // when readIndex - (writeIndex + totalBytesWritten) yielded 0
+          /**
+           * A rare case where readIndex - (writeIndex + totalBytesWritten)
+           * equals 0. This hardly happen as the read speed is much faster
+           * than the write speed.
+           */
           if (writeLength === 0) {
+            strictEqual(toWrite.length !== totalBytesWritten, true);
             await nextReadingDone.promise;
-            // if (toWrite.length === totalBytesWritten) 
-            //   debugger;
             continue;
           }
 
           const { bytesWritten } = await fd.write(toWrite, totalBytesWritten, writeLength, writeIndex + totalBytesWritten);
           totalBytesWritten += bytesWritten;
-          if (totalBytesWritten === toWrite.length)
-            break;
         }
 
         writeIndex += toWrite.length;
 
-        callback();
+        return callback();
       } catch (err) {
-        callback(err);
+        return callback(err);
       }
     },
     final(callback) {
       fd.truncate(writeIndex)
         .then(fd.close)
-        .then(callback)
-        .catch(err => callback(err))
+        .then(() => callback(), callback)
     }
-  }).on("error", fd.close);
+  }).once("error", fd.close);
 
   return {
     fd,

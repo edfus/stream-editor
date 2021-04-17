@@ -1,4 +1,5 @@
 "use strict";
+const { ok } = require("assert");
 const { Transform: Node_Transform } = require("stream");
 
 const kSource = Symbol("source");
@@ -7,21 +8,22 @@ const kNuked = Symbol("nuked");
 class Transform extends Node_Transform {
   constructor ({ 
     separator,
-    process,
+    processFunc,
     decodeBuffers,
     encoding,
-    maxLength 
+    maxLength,
+    readableObjectMode
   }) {
     super({
       decodeStrings: false, // Accept string input
       encoding: encoding,
+      readableObjectMode
     });
 
     this.separator = separator;
-    this.process = process;
+    this.process = processFunc;
 
     this.decoder = new TextDecoder(decodeBuffers);
-    // A TextEncoder object offers no label argument as it only supports UTF-8.
 
     this[kSource] = '';
     this.maxLength = maxLength;
@@ -36,7 +38,7 @@ class Transform extends Node_Transform {
     this[kSource] = this[kSource].concat(parts[0]);
 
     if (parts.length === 1) {
-      if(this[kSource].length > this.maxLength) //NOTE
+      if(this[kSource].length > this.maxLength)
         return cb(
           new Error(
             `Maximum buffer length ${this.maxLength} reached: ...`
@@ -73,13 +75,6 @@ class Transform extends Node_Transform {
     );
     return cb();
   }
-
-  // push (string) {
-  //   if(string === null)
-  //     return super.push(null);
-
-  //   return super.push(this.encoder.encode(string));
-  // }
 }
 
 /**
@@ -151,8 +146,7 @@ class NukableTransform extends Transform {
 
           return false;
         } else {
-          // strictEqual(null, args[0]);
-          // strictEqual(1, args.length);
+          ok(!args[0]);
           // https://github.com/nodejs/node/blob/51b43675067fafaad0abd7d4f62a6a5097db5044/lib/internal/streams/transform.js#L159
           return super.push(null);
         }

@@ -5,20 +5,18 @@ import { Transform, NukableTransform } from "./transform.mjs";
 async function process_stream (
   readableStream,
   writableStream,
-  { separator, processFunc, encoding, decodeBuffers, truncate, maxLength }
+  options
 ) {
+
+  const { processFunc, truncate } = options;
 
   let transformStream;
 
   try {
     if (processFunc.withLimit) {
       transformStream = new NukableTransform({
-          separator,
-          process: processFunc,
-          encoding,
-          decodeBuffers,
+          ...options,
           withFalloutShelter: !truncate,
-          maxLength
       });
   
       let limitReached = false;
@@ -36,13 +34,7 @@ async function process_stream (
         }
       }
     } else {
-      transformStream = new Transform({
-        separator,
-        process: processFunc,
-        encoding,
-        decodeBuffers,
-        maxLength
-      })
+      transformStream = new Transform(options);
     }
   } catch (err) {
     readableStream.destroy();
@@ -65,10 +57,16 @@ async function process_stream (
 
 
 async function rw_stream(filepath, options) {
-  const { readableStream, writableStream } = await rw(filepath);
+  const { readableStream, writableStream } = await rw(
+    filepath,
+    {
+      readStart: options.readStart,
+      writeStart: options.writeStart
+    }
+  );
 
   return process_stream(readableStream, writableStream, options)
-            .then(() => void 0); // not leaking reference to local writableStream
+            .then(() => void 0); // not leaking the reference to local writableStream
 }
 
 export { rw_stream, process_stream };
