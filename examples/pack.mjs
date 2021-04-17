@@ -19,7 +19,8 @@ const testPath = join(root_directory, "./test");
 const tmpTestDestination = join(root_directory, "./test.tmp");
 const tests   = [
   "test.mjs", "gbk.txt", "./netflix/domain.yaml", "./netflix/IP.yaml",
-  "../examples/helpers/process-files.mjs"
+  "../examples/helpers/process-files.mjs", "./readable-object-mode.ndjson",
+  "test-regex.mjs"
 ];
 
 const testCommand = "mocha";
@@ -54,25 +55,47 @@ const replacements = {
     }
   ],
   commonReplace: [
+    // add "use strict"
     {
       match: /^().*(\r?\n)/,
       replacement: `"use strict";$2`,
       isFullReplacement: false,
       maxTimes: 1
     },
+    // replace import subfix
     {
       match: matchImport(`((.+?)${mjs.from.replace(".", "\\.")})`),
       replacement: "$2".concat(mjs.toCJS),
       isFullReplacement: false
     },
+    // replace dynamic import subfix
     {
       search: matchDynamicImport(`['"]((.+?)${mjs.from.replace(".", "\\.")})['"]`),
       replacement: "$2".concat(mjs.toCJS),
       isFullReplacement: false
     },
+    // `:` in import name 
+    { 
+      search: matchImport(/(.+?)/),
+      replacement: moduleName => {
+        const parts = moduleName.split(":");
+        if(parts.length === 1) {
+          return moduleName;
+        } else if(parts.length === 2 && parts[0] === "node") {
+          return parts[1];
+        } else {
+          console.error(`Unrecognized prefix '${
+            parts.slice(0, parts.length - 1).join(":")
+          }:' for ${moduleName}`);
+
+          return moduleName;
+        }
+      },
+      isFullReplacement: false
+    },
     // default import
     { 
-      search: /import\s+([^{}]+?)\s+from\s*['"](.+?)['"];?/,
+      search: /(?<!`)import\s+([^{}]+?)\s+from\s*['"](.+?)['"];?/,
       replacement: (wholeMatch, $1, $2) => {
         // debugger;
         return `const ${$1} = require("${$2}");`
@@ -81,10 +104,22 @@ const replacements = {
     },
     // named import with or without renaming
     { 
-      search: /import\s+\{\s*(.+?)\s*\}\s+from\s*['"](.+?)['"];?/,
+      search: /(?<!`)import\s+\{\s*(.+?)\s*\}\s+from\s*['"](.+?)['"];?/,
       replacement: (wholeMatch, namedImports, moduleName) => {
         namedImports = namedImports.replace(/\s+as\s+/g, ": ");
         return `const { ${namedImports} } = require("${moduleName}");`;
+      },
+      isFullReplacement: true
+    },
+    // named import plus default import
+    { 
+      search: /(?<!`)import\s+(.+?),\s*\{\s*(.+?)\s*\}\s+from\s*['"](.+?)['"];?[ \t]*(\r?\n)/,
+      replacement: (wholeMatch, defaultImport, namedImports, moduleName, lineEnding) => {
+        namedImports = namedImports.replace(/\s+as\s+/g, ": ");
+        return [
+          `const ${defaultImport} = require("${moduleName}");`,
+          `const { ${namedImports} } = ${defaultImport};`
+        ].join(lineEnding).concat(lineEnding);
       },
       isFullReplacement: true
     },
@@ -112,15 +147,24 @@ const replacements = {
   ]
 };
 
-const then = () => new Promise((resolve, reject) => {
-  if(process.argv[2] !== "--version=false") {
-    exec(`npm run example/npm`, (err, stdout, stderr) => {
-      if(err) return reject(err);
-      return resolve(console.info(stdout));
-    });
-  }
-  return resolve();
-});
+const stripAnsiRegEx = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+const testResults = [];
+const onTestData = chunk => testResults.push(chunk.toString().replace(stripAnsiRegEx, ""));
+
+const then = () => Promise.all([
+  new Promise((resolve, reject) => {
+    if(process.argv[2] !== "--version=false") {
+      exec(`npm run example/npm`, (err, stdout, stderr) => {
+        if(err) return reject(err);
+        return resolve(console.info(stdout));
+      });
+    }
+    return resolve();
+  }),
+  import("./update-readme-tests.mjs").then(
+    ({ default: updateTests }) => updateTests(testResults.join(""))
+  )
+]);
 
 /**
  * main
@@ -200,13 +244,23 @@ const inprogressMkdir = {};
   );
 
   await new Promise((resolve, reject) => {
-    const child = spawn(testCommand, testArgs, { shell: true, stdio: "inherit" });
+    const child = spawn(testCommand, testArgs, {
+      shell: true, stdio: ["ignore", "pipe", "inherit"], env: {
+        ...process.env,
+        "FORCE_COLOR": process.env["FORCE_COLOR"] || 1
+      }
+    });
     child.once("error", reject);
     child.once("exit", code => {
       if (code === 0)
         return resolve();
       throw new Error(`Running ${testCommand} ${testArgs} returns ${code}`);
-     });
+    });
+
+    child.stdout.on("data", data => process.stdout.write(data));
+
+    if(typeof onTestData === "function")
+      child.stdout.on("data", onTestData);
   });
 
   typeof then === "function" && (await then());
@@ -270,7 +324,7 @@ async function transport (filepath, sourcePath, destination, replace, isTest = f
 }
 
 function matchImport (addtionalPattern) {
-  const parts = /import\s+.+\s+from\s*['"](.+?)['"];?/.source.split("(.+?)");
+  const parts = /(?<!`)import\s+.+\s+from\s*['"](.+?)['"];?/.source.split("(.+?)");
 
   return new RegExp([
     parts[0],
@@ -280,7 +334,7 @@ function matchImport (addtionalPattern) {
 }
 
 function matchDynamicImport (addtionalPattern) {
-  const parts = /\(?await import\s*\(\s*(.+?)\s*\)\s*\)?(\s*\.default)?/.source.split("(.+?)");
+  const parts = /(?<!`)\(?await import\s*\(\s*(.+?)\s*\)\s*\)?(\s*\.default)?/.source.split("(.+?)");
 
   return new RegExp([
     parts[0],
@@ -290,7 +344,7 @@ function matchDynamicImport (addtionalPattern) {
 }
 
 function matchCurrentFolderImport (addtionalPattern) {
-  const parts = /import\s+.+\s+from\s*['"]\.\/(.+?)['"];?/.source.split("(.+?)");
+  const parts = /(?<!`)import\s+.+\s+from\s*['"]\.\/(.+?)['"];?/.source.split("(.+?)");
 
   return new RegExp([
     parts[0],
@@ -300,7 +354,7 @@ function matchCurrentFolderImport (addtionalPattern) {
 }
 
 function matchParentFolderImport (addtionalPattern) {
-  const parts = /import\s+.+\s+from\s*['"]\.\.\/(.+?)['"];?/.source.split("(.+?)");
+  const parts = /(?<!`)import\s+.+\s+from\s*['"]\.\.\/(.+?)['"];?/.source.split("(.+?)");
 
   return new RegExp([
     parts[0],
