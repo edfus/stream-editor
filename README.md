@@ -17,7 +17,7 @@ Table of Contents
       * [Transcoding streams or files](#transcoding-streams-or-files)
       * [Piping/teeing/confluencing streams with proper error handling &amp; propagation](#pipingteeingconfluencing-streams-with-proper-error-handling--propagation)
       * [No dependency](#no-dependency)
-      * [Various unit tests](#various-unit-tests)
+      * [High coverage tests](#high-coverage-tests)
   * [API](#api)
       * [Update options](#update-options)
       * [Stream options](#stream-options)
@@ -215,7 +215,7 @@ update-file-content previously depends on [rw-stream](https://github.com/signico
 
 Currently, update-file-content has zero dependency.
 
-### High coverage tests.
+### High coverage tests
 
 See <https://github.com/edfus/update-file-content/tree/master/test>.
 
@@ -233,7 +233,7 @@ See <https://github.com/edfus/update-file-content/tree/master/test>.
 
   Update files
     √ should check arguments
-    √ should pipe one Readable to multiple dumps (52ms)
+    √ should pipe one Readable to multiple dumps (48ms)
     √ should replace CRLF with LF
     √ should have replaced /dum(b)/i to dumpling (while preserving dum's case)
     √ should have global and local limitations in replacement amount
@@ -260,7 +260,7 @@ See <https://github.com/edfus/update-file-content/tree/master/test>.
       √ can handle files larger than 16KiB
 
 
-  30 passing (244ms)
+  30 passing (250ms)
 
 ```
 
@@ -517,6 +517,7 @@ interface MultipleReadablesToWritableOptions<T> extends BasicOptions {
   /**
    * Concatenate results of transformed Readables with the input value.
    * Accepts a literal string or a Buffer.
+   * option.encoding will be passed along with contentJoin to Writable.write
    * Default: ""
    */
   contentJoin: string | Buffer;

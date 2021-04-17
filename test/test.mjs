@@ -130,6 +130,65 @@ describe("Update files", () => {
         message: "update-file-content: (search|match) 'dfabdf' is neither RegExp nor string OR replacement 'undefined' is neither Function nor string."
       }
     );
+
+    await assert.rejects(
+      () => updateFileContent({
+        file: "./",
+        replace: [
+          {
+            search: "dfabdf",
+          }
+        ]
+      }),
+      {
+        name: "TypeError",
+        message: "update-file-content: (search|match) 'dfabdf' is neither RegExp nor string OR replacement 'undefined' is neither Function nor string."
+      }
+    );
+
+    await assert.rejects(
+      () => updateFileContent({
+        file: "./",
+        postProcessing: ""
+      }),
+      {
+        name: "TypeError",
+        message: `update-file-conent: non-function '' passed as options.postProcessing`
+      }
+    );
+
+    await assert.rejects(
+      () => updateFileContent({
+        from: {},
+        to: ""
+      }),
+      {
+        name: "TypeError",
+        message: `updateFileContent: options.(readableStream|writableStream|from|to) is invalid.`
+      }
+    );
+
+    await assert.rejects(
+      () => updateFiles({
+        readableStreams: [new Readable(), "", Symbol("fdab")],
+        to: new Writable()
+      }),
+      {
+        name: "TypeError",
+        message: "updateFiles: options.(readableStreams|from) is not an instance of Array<Readable>"
+      }
+    );
+
+    await assert.rejects(
+      () => updateFiles({
+        readableStream: new Readable(),
+        to: [new Readable()]
+      }),
+      {
+        name: "TypeError",
+        message: "updateFiles: options.(writableStreams|to) is not an instance of Array<Writable>"
+      }
+    );
   });
 
   it("should pipe one Readable to multiple dumps", async () => {
@@ -592,11 +651,32 @@ describe("Update files", () => {
       );
     });
 
-    it("updateFiles: can correctly propagate errors emitted by writableStreams", async () => {
-      if (parseInt(process.version.replace(/^v/, "")) < 14) {
-        return; // catching error originated from destroy method is broken in v12x
-      }
+    it("updateFiles: can correctly propagate errors emitted by writableStream", async () => {
+      await assert.rejects(
+        () => updateFiles({
+          readableStreams: new Array(10).fill(
+            new Readable({
+              highWaterMark: 6,
+              read(size) {
+                this.push("Afbdfbdbbdfb".repeat(6));
+                this.push(null);
+              }
+            }).setMaxListeners(50)
+          ),
+          writableStream: new Writable({
+            write(chunk, enc, cb) {
+              return cb(new Error("o"));
+            }
+          })
+        }),
+        {
+          name: "Error",
+          message: "o"
+        }
+      );
+    });
 
+    it("updateFiles: can correctly propagate errors emitted by writableStreams", async () => {
       await assert.rejects(
         () => updateFiles({
           readableStream: new Readable({
@@ -610,8 +690,7 @@ describe("Update files", () => {
           writableStreams: new Array(10).fill(
             new Writable({
               write(chunk, enc, cb) {
-                this.destroy(new Error("o"));
-                return cb();
+                return cb(new Error("o"));
               }
             }).setMaxListeners(50)
           )
@@ -645,7 +724,7 @@ describe("Update files", () => {
         }),
         {
           name: "Error",
-          message: "Cannot call write after a stream was destroyed"
+          message: "Premature close"
         }
       );
     });
@@ -666,7 +745,8 @@ describe("Update files", () => {
         }),
         separator: /(?=([^,\n]+(,\n)?|(,\n)))/,
         search: /.*/i,
-        replacement: ""
+        replacement: "$`",
+        disablePlaceholders: true
       });
     });
 
@@ -709,8 +789,9 @@ describe("Update files", () => {
           to: writableStream,
           separator: /,/,
           join: "$",
-          search: /.$/,
-          replacement: () => ""
+          search: /(.$)/,
+          replacement: "",
+          disablePlaceholders: true
         });
       } catch (err) {
         logs.push(`catch: Error ${err.message}`);
@@ -757,7 +838,8 @@ describe("Update files", () => {
         separator: /honk/,
         join: "honking intensifies",
         search: /$./,
-        replacement: "",
+        replacement: "$`",
+        disablePlaceholders: true,
         encoding: "A super evil text."
       });
     } catch (err) {
@@ -796,7 +878,8 @@ describe("Update files", () => {
               `${/\s*from\s*['"]/.source}(${from.replace(/\//g, "\/")})${/['"]/.source}`,
               "g"
             ),
-            replacement: to
+            replacement: to,
+            disablePlaceholders: true
           };
 
           await fsp.readFile(file, "utf-8")
