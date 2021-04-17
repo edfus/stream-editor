@@ -81,7 +81,8 @@ function _getReplaceFunc ( options ) {
       replacement: options.replacement,
       limit: options.limit,      // being a local limit
       maxTimes: options.maxTimes,
-      isFullReplacement: options.isFullReplacement
+      isFullReplacement: options.isFullReplacement,
+      disablePlaceholders: options.disablePlaceholders
     });
   } else {
     if(validate(options.limit, 1))
@@ -151,7 +152,7 @@ function _getReplaceFunc ( options ) {
   };
   
   replaceSet = new Set(
-    replace.map(({ match, search, replacement, isFullReplacement, limit, maxTimes }) => {
+    replace.map(({ match, search, replacement, isFullReplacement, limit, maxTimes, disablePlaceholders }) => {
       if(match && !search)
         search = match;
   
@@ -198,7 +199,7 @@ function _getReplaceFunc ( options ) {
       if(isFullReplacement) {
         if(typeof replacement === "string") {
           const _replacement = replacement;
-          if(captureGroupPlaceholdersPattern.test(replacement)) {
+          if(!disablePlaceholders && captureGroupPlaceholdersPattern.test(replacement)) {
             replacement = substituteCaptureGroupPlaceholders.bind(void 0, _replacement);
           } else {
             replacement = () => _replacement;
@@ -208,16 +209,16 @@ function _getReplaceFunc ( options ) {
         rule = {
           pattern: new RegExp (search.source, flags),
           replacement: replacement
-        }
+        };
       } else {
         /**
          * Replace the 1st parenthesized substring match with replacement,
          * and that is a so-called partial replacement.
          */
-        const hasPlaceHolder = captureGroupPlaceholdersPattern.test(replacement);
+        const hasPlaceHolder = !disablePlaceholders && captureGroupPlaceholdersPattern.test(replacement);
         const isFunction     = typeof replacement === "function";
 
-        const specialTreatmentNeeded = hasPlaceHolder || isFunction;
+        const specialTreatmentNeeded = !disablePlaceholders && ( hasPlaceHolder || isFunction );
 
         rule = {
           pattern: 
@@ -278,10 +279,17 @@ function _getReplaceFunc ( options ) {
                 }
               }
 
+              let replacmentWithPrecededPart;
+              if(disablePlaceholders) {
+                replacmentWithPrecededPart = () => precededPart.concat(_replacement);
+              } else {
+                replacmentWithPrecededPart = precededPart.concat(_replacement);
+              }
+
               // using precededPart as a hook
               return wholeMatch.replace(
                 precededPart.concat(substrMatch),
-                precededPart.concat(_replacement)
+                replacmentWithPrecededPart
               );
             }
         }
@@ -349,9 +357,9 @@ function _getReplaceFunc ( options ) {
 async function updateFileContent( options ) {
   const replaceFunc = _getReplaceFunc(options);
   const separator = "separator" in options ? options.separator : /(?<=\r?\n)/;
-  const encoding = options.encoding || null;
+  const encoding  = options.encoding || null;
   const decodeBuffers = options.decodeBuffers || "utf8";
-  const truncate = "truncate" in options ? options.truncate : false;
+  const truncate  = Boolean(options.truncate);
   const maxLength = options.maxLength || Infinity;
 
   if("file" in options) {
@@ -394,9 +402,9 @@ async function updateFileContent( options ) {
 
 async function updateFiles ( options ) {
   const separator = "separator" in options ? options.separator : /(?<=\r?\n)/;
-  const encoding = options.encoding || null;
+  const encoding  = options.encoding || null;
   const decodeBuffers = options.decodeBuffers || "utf8";
-  const truncate = "truncate" in options ? options.truncate : false;
+  const truncate  = Boolean(options.truncate);
   const maxLength = options.maxLength || Infinity;
 
   if(validate(options.files, Array) && validate(...options.files, ".")) {

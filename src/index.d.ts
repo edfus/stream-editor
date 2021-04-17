@@ -29,6 +29,15 @@ interface BasicReplaceOption {
    */
   isFullReplacement?: Boolean;
   /**
+   * Only valid for a string replacement.
+   * 
+   * Disable placeholders in replacement or not. Processed result shall be
+   * exactly the same as the string replacement if set to true.
+   * 
+   * Default: false
+   */
+  disablePlaceholders?: Boolean;
+  /**
    * Apply restriction on certain search's maximum executed times.
    * 
    * Upon reaching the limit, if option `truncate` is falsy (false by default),
@@ -113,9 +122,14 @@ interface BasicOptions extends ReplaceOptions {
    * Used by underlying transform stream to split upstream data into separate
    * to-be-processed parts.
    * 
+   * String.prototype.split will implicitly call `toString` on non-string &
+   * non-regex & non-void values.
+   * 
+   * Specify `null` or `undefined` to process upstream data as a whole.
+   * 
    * Default: /(?<=\r?\n)/. Line endings following lines.
    */
-  separator?: string | RegExp;
+  separator?: string | RegExp | null;
   /**
    * Correspondence: String.prototype.join's 1nd argument, though a function 
    * is also acceptable.
@@ -171,7 +185,7 @@ interface BasicOptions extends ReplaceOptions {
    * The maximum size of the line buffer.
    * 
    * A line buffer is the buffer used for buffering the last incomplete substring
-   * when dividing the read chunk (typically 64 KiB) by options.separator.
+   * when dividing chunks (typically 64 KiB) by options.separator.
    * 
    * Default: Infinity.
    */
@@ -273,7 +287,7 @@ interface UpdateFilesOptions extends BasicOptions {
    * 
    * Default: 0
    */
-   readStart?: number;
+  readStart?: number;
    /**
     * Correspondence: fs.write's 4th argument - position
     * 
@@ -285,7 +299,7 @@ interface UpdateFilesOptions extends BasicOptions {
     * 
     * Default: 0
     */
-   writeStart?: number;
+  writeStart?: number;
 }
 
 // updateFiles - readables -> writable
@@ -327,7 +341,7 @@ interface MultipleReadablesToWritableOptionsAlias<T> extends BasicOptions {
    * 
    * Default: ""
    */
-  contentJoin: string;
+  contentJoin: string | Buffer;
 }
 
 // updateFiles - readable -> writables

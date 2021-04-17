@@ -7,7 +7,7 @@ const kNuked = Symbol("nuked");
 class Transform extends Node_Transform {
   constructor ({ 
     separator,
-    process,
+    processFunc,
     decodeBuffers,
     encoding,
     maxLength,
@@ -20,10 +20,9 @@ class Transform extends Node_Transform {
     });
 
     this.separator = separator;
-    this.process = process;
+    this.process = processFunc;
 
     this.decoder = new TextDecoder(decodeBuffers);
-    // A TextEncoder object offers no label argument as it only supports UTF-8.
 
     this[kSource] = '';
     this.maxLength = maxLength;
@@ -38,7 +37,7 @@ class Transform extends Node_Transform {
     this[kSource] = this[kSource].concat(parts[0]);
 
     if (parts.length === 1) {
-      if(this[kSource].length > this.maxLength) //NOTE
+      if(this[kSource].length > this.maxLength)
         return cb(
           new Error(
             `Maximum buffer length ${this.maxLength} reached: ...`

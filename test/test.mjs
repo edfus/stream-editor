@@ -192,7 +192,7 @@ describe("Update files", () => {
     });
   });
 
-  it("should have global and partial limitations in replacement amount", async () => {
+  it("should have global and local limitations in replacement amount", async () => {
     const filepath = join(__dirname, `./dump${dump$[1]}`);
 
     await updateFileContent({
@@ -435,7 +435,7 @@ describe("Update files", () => {
 
     it("gbk to hex with HWM", async () => {
       const fileHandler = await fsp.open(fileSourcePath, "r");
-      const filepath = join(__dirname, "./dump-hex.txt");
+      const resultPath = join(__dirname, "./dump-hex.txt");
 
       await updateFileContent({
         from: new Readable({
@@ -456,12 +456,12 @@ describe("Update files", () => {
           }
         }).once("error", fileHandler.close)
           .once("end", fileHandler.close),
-        to: createWriteStream(filepath),
+        to: createWriteStream(resultPath),
         decodeBuffers: "gbk",
         encoding: "hex"
       });
 
-      const result = await fsp.readFile(filepath, "utf8");
+      const result = await fsp.readFile(resultPath, "utf8");
 
       const should_be_hex = "e29885e38080e9ad94e6b3";
       const should_be_str = "★　魔法与红梦化成的存在　???　雾雨魔理沙";

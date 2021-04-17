@@ -5,21 +5,18 @@ import { Transform, NukableTransform } from "./transform.mjs";
 async function process_stream (
   readableStream,
   writableStream,
-  { separator, processFunc, encoding, decodeBuffers, truncate, maxLength, readableObjectMode }
+  options
 ) {
+
+  const { processFunc, truncate } = options;
 
   let transformStream;
 
   try {
     if (processFunc.withLimit) {
       transformStream = new NukableTransform({
-          separator,
-          process: processFunc,
-          encoding,
-          decodeBuffers,
+          ...options,
           withFalloutShelter: !truncate,
-          maxLength,
-          readableObjectMode
       });
   
       let limitReached = false;
@@ -37,14 +34,7 @@ async function process_stream (
         }
       }
     } else {
-      transformStream = new Transform({
-        separator,
-        process: processFunc,
-        encoding,
-        decodeBuffers,
-        maxLength,
-        readableObjectMode
-      });
+      transformStream = new Transform(options);
     }
   } catch (err) {
     readableStream.destroy();
