@@ -233,7 +233,7 @@ See <https://github.com/edfus/update-file-content/tree/master/test>.
 
   Update files
     √ should check arguments
-    √ should pipe one Readable to multiple dumps (48ms)
+    √ should pipe one Readable to multiple dumps (54ms)
     √ should replace CRLF with LF
     √ should have replaced /dum(b)/i to dumpling (while preserving dum's case)
     √ should have global and local limitations in replacement amount
@@ -252,6 +252,7 @@ See <https://github.com/edfus/update-file-content/tree/master/test>.
       √ readableObjectMode
       √ updateFiles: can correctly propagate errors emitted by readableStreams
       √ updateFiles: can handle prematurely destroyed readableStreams
+      √ updateFiles: can correctly propagate errors emitted by writableStream
       √ updateFiles: can correctly propagate errors emitted by writableStreams
       √ updateFiles: can handle prematurely destroyed writableStreams
       √ can handle non-string in regular expression split result
@@ -260,7 +261,7 @@ See <https://github.com/edfus/update-file-content/tree/master/test>.
       √ can handle files larger than 16KiB
 
 
-  30 passing (250ms)
+  31 passing (302ms)
 
 ```
 

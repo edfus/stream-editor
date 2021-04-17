@@ -458,10 +458,14 @@ async function updateFiles ( options ) {
         );
 
         return new Promise(async (resolve, reject) => {
-          Promise.all(resultPromises).catch(err => {
-            resultStreams.forEach(stream => stream.destroy());
-            destination.end(() => reject(err));
-          })
+          const destroy = err => {
+            resultStreams.forEach(stream => !stream.destroyed && stream.destroy());
+            !destination.destroyed && destination.destroy();
+            return reject(err);
+          };
+
+          Promise.all(resultPromises).catch(destroy);
+          destination.once("error", destroy);
 
           const lastIndex = resultStreams.length - 1;
 
@@ -476,17 +480,25 @@ async function updateFiles ( options ) {
                 resultStream
                   .once("error", reject)
                   .once("end", () => {
-                    if(i < lastIndex)  //NOTE: the encoding option
-                      destination.write(contentJoin, encoding, resolve);
-                    else destination.end(resolve);
+                    if(i < lastIndex) {
+                      if(destination.destroyed || destination.writableEnded)
+                        return resolve();
+
+                      return destination.write(
+                        contentJoin,
+                        encoding,
+                        err => err ? reject(err) : resolve()
+                      );
+                    } else {
+                      destination.end(resolve);
+                    }
                   })
                   .pipe(destination, { end: false })
                 ;
               });
             }, void 0); // If initialValue is not provided, reduce() will skip the first index.
           } catch (err) {
-            resultStreams.forEach(stream => stream.destroy());
-            destination.end(() => reject(err));
+            return destroy(err);
           }
 
           return resolve(destination);
@@ -499,47 +511,60 @@ async function updateFiles ( options ) {
       const dests = to;
 
       if(validate(...dests, Writable)) {
-        let errored = false;
+        const onError = err =>{
+          return confluence.destroy(err);
+        };
+
+        const checkEnded = () => {
+          if(dests.every(s => s.destroyed || s.writableEnded)) {
+            return confluence.destroy();
+          }
+        };
+
+        // readableStream's possible error events will be handled by pipeline
+        dests.forEach(writableStream => writableStream.once("error", onError));
 
         const confluence = new Writable({
           async write (chunk, encoding, cb) {
             try {
               await Promise.all(
-                dests.map(writableStream => 
-                  new Promise((resolve, reject) => 
-                    writableStream.write(chunk, encoding, err => err ? reject(err) : resolve())
+                dests.map(writableStream => {
+                  if(writableStream.destroyed || writableStream.writableEnded)
+                    return checkEnded();
+
+                  return new Promise((resolve, reject) => 
+                    writableStream.write(
+                      chunk,
+                      encoding,
+                      err => err ? reject(err) : resolve()
+                    )
                   )
-                )
+                })
               );
             } catch (err) {
-              if(!errored)
-                return cb(err);
+              return cb(err);
             }
             return cb();
           },
           destroy (err, cb) {
             dests.forEach(
-              writableStream => writableStream.destroy()
+              writableStream => !writableStream.destroyed && writableStream.destroy()
             );
             return cb(err);
           },
           autoDestroy: true, // Default: true.
-          final (cb) {
-            dests.forEach(
-              writableStream => writableStream.end()
+          async final (cb) {
+            await Promise.all(
+              dests.map(
+                writableStream => new Promise((resolve, reject) => {
+                  // writableStream.removeListener("error", onError);
+                  writableStream.end(resolve);
+                })
+              )
             );
             return cb();
           }
         });
-
-        dests.forEach(
-          writableStream => {
-            writableStream.once("error", err =>{
-              errored = true;
-              return confluence.destroy(err);
-            });
-          }
-        );
         
         return process_stream (
           readableStream,

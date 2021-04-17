@@ -339,6 +339,8 @@ interface MultipleReadablesToWritableOptionsAlias<T> extends BasicOptions {
    * 
    * Accepts a literal string or a Buffer.
    * 
+   * option.encoding will be passed along with contentJoin to Writable.write
+   * 
    * Default: ""
    */
   contentJoin: string | Buffer;
