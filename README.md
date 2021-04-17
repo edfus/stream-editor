@@ -8,25 +8,23 @@ Utility for executing RegEx replacement on files, powered by stream.
 [![CI](https://github.com/edfus/update-file-content/actions/workflows/node.js.yml/badge.svg?branch=master)](https://github.com/edfus/update-file-content/actions/workflows/node.js.yml)
 [![Node.js Version](https://raw.githubusercontent.com/edfus/storage/master/node-lts-badge.svg)](https://nodejs.org/en/about/releases/)
 
-Table of Contents
-=================
-  * [Features](#features)
-      * [Partial replacement](#partial-replacement)
-      * [Updating content of files in streaming fashion](#updating-content-of-files-in-streaming-fashion)
-      * [Setting limits on Regular Expressions' maximum executed times](#setting-limits-on-regular-expressions-maximum-executed-times)
-      * [Transcoding streams or files](#transcoding-streams-or-files)
-      * [Piping/teeing/confluencing streams with proper error handling &amp; propagation](#pipingteeingconfluencing-streams-with-proper-error-handling--propagation)
-      * [No dependency](#no-dependency)
-      * [High coverage tests](#high-coverage-tests)
-  * [API](#api)
-      * [Update options](#update-options)
-      * [Stream options](#stream-options)
-        * [updateFileContent - file](#updatefilecontent---file)
-        * [updateFileContent - transform Readable](#updatefilecontent---transform-readable)
-        * [updateFiles - files](#updatefiles---files)
-        * [updateFiles - readables -&gt; writable](#updatefiles---readables---writable)
-        * [updateFiles - readable -&gt; writables](#updatefiles---readable---writables)
-  * [Examples](#examples)
+* [Features](#features)
+    * [Partial replacement](#partial-replacement)
+    * [Updating content of files in streaming fashion](#updating-content-of-files-in-streaming-fashion)
+    * [Setting limits on Regular Expressions' maximum executed times](#setting-limits-on-regular-expressions-maximum-executed-times)
+    * [Transcoding streams or files](#transcoding-streams-or-files)
+    * [Piping/teeing/confluencing streams with proper error handling &amp; propagation](#pipingteeingconfluencing-streams-with-proper-error-handling--propagation)
+    * [No dependency](#no-dependency)
+    * [High coverage tests](#high-coverage-tests)
+* [API](#api)
+    * [Update options](#update-options)
+    * [Stream options](#stream-options)
+      * [updateFileContent - file](#updatefilecontent---file)
+      * [updateFileContent - transform Readable](#updatefilecontent---transform-readable)
+      * [updateFiles - files](#updatefiles---files)
+      * [updateFiles - readables -&gt; writable](#updatefiles---readables---writable)
+      * [updateFiles - readable -&gt; writables](#updatefiles---readable---writables)
+* [Examples](#examples)
 
 ## Features
 
@@ -207,7 +205,7 @@ updateFiles({
 });
 ```
 
-Check out [there](https://github.com/edfus/update-file-content/blob/260804514e622cedffaaa4869101133256501da4/test/test.mjs#L502-L741) for error handling & propagation tests.
+You can have a look at error handling & propagation tests [here](https://github.com/edfus/update-file-content/blob/260804514e622cedffaaa4869101133256501da4/test/test.mjs#L502-L741).
 
 ### No dependency
 
@@ -233,13 +231,13 @@ See <https://github.com/edfus/update-file-content/tree/master/test>.
 
   Update files
     √ should check arguments
-    √ should pipe one Readable to multiple dumps (54ms)
+    √ should pipe one Readable to multiple dumps (55ms)
     √ should replace CRLF with LF
     √ should have replaced /dum(b)/i to dumpling (while preserving dum's case)
     √ should have global and local limitations in replacement amount
     √ should have line buffer maxLength
     √ should update and combine multiple Readable into one Writable
-    √ can properly destroy streams if errors occurred during initialization
+    √ has readableObjectMode
     truncation & limitation
       √ truncating the rest when limitations reached
       √ not: self rw-stream
@@ -247,21 +245,23 @@ See <https://github.com/edfus/update-file-content/tree/master/test>.
     transcoding
       √ gbk to utf8 buffer
       √ gbk to hex with HWM
-    corner cases
-      √ can handle empty content
-      √ readableObjectMode
+    error handling
+      √ destroys streams properly when one of them closed prematurely
+      √ destroys streams properly if errors occurred during initialization
       √ updateFiles: can correctly propagate errors emitted by readableStreams
       √ updateFiles: can handle prematurely destroyed readableStreams
       √ updateFiles: can correctly propagate errors emitted by writableStream
       √ updateFiles: can correctly propagate errors emitted by writableStreams
       √ updateFiles: can handle prematurely destroyed writableStreams
+      √ updateFiles: can handle prematurely ended writableStreams
+    corner cases
+      √ can handle empty content
       √ can handle non-string in regular expression split result
-      √ can handle premature stream close when piping
     try-on
       √ can handle files larger than 16KiB
 
 
-  31 passing (302ms)
+  32 passing (299ms)
 
 ```
 

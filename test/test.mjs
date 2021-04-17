@@ -357,6 +357,42 @@ describe("Update files", () => {
     );
   });
 
+  it("has readableObjectMode", async () => {
+    const filepath = join(__dirname, `./readable-object-mode.ndjson`);
+
+    await updateFileContent({
+      file: filepath,
+      separator: /\r\n/,
+      join: "\n"
+    });
+
+    const results = [];
+
+    await updateFileContent({
+      from: createReadStream(filepath),
+      to: new Writable({
+        objectMode: true,
+        write(chunk, enc, cb) {
+          if(typeof chunk === "object")
+            results.push(JSON.stringify(chunk));
+          return cb();
+        }
+      }),
+      separator: "\n",
+      readableObjectMode: true,
+      postProcessing(part) {
+        if(part.length)
+          return JSON.parse(part);
+        return part;
+      }
+    });
+
+    strictEqual(
+      results.join("\n"),
+      await fsp.readFile(filepath, "utf-8")
+    );
+  });
+
   describe("truncation & limitation", () => {
     it("truncating the rest when limitations reached", async () => {
       const filepath = join(__dirname, `./dump${dump$[1]}`);
@@ -539,59 +575,111 @@ describe("Update files", () => {
     });
   });
 
-  describe("corner cases", () => {
-    it("can handle empty content", async () => {
-      const filepath = join(__dirname, `./dump${dump$[3]}`);
-      await updateFileContent({
-        file: filepath,
-        separator: /,/,
-        search: /(.|\n)+/,
-        replacement: () => "",
-        isFullReplacement: true,
-        limit: 88,
-        truncate: true
-      });
+  describe("error handling", () => {
+    
+    it("destroys streams properly when one of them closed prematurely", async () => {
+      // streams by themselves can only propagate errors up but not down.
+      const writableStream =
+        createWriteStream(join(__dirname, `./dump${dump_[1]}`))
+        // .once("error", () => logs.push("Event: writableStream errored"))
+        // see https://github.com/edfus/update-file-content/runs/1641959273
+        ;
 
-      strictEqual(
-        '',
-        await fsp.readFile(filepath, "utf-8")
-      );
-    });
+      const logs = [];
 
-    it("readableObjectMode", async () => {
-      const filepath = join(__dirname, `./readable-object-mode.ndjson`);
+      writableStream.destroy = new Proxy(writableStream.destroy, {
+        apply(target, thisArg, argumentsList) {
+          logs.push("Proxy: writableStream.destroy.apply");
 
-      await updateFileContent({
-        file: filepath,
-        separator: /\r\n/,
-        join: "\n"
-      });
-
-      const results = [];
-
-      await updateFileContent({
-        from: createReadStream(filepath),
-        to: new Writable({
-          objectMode: true,
-          write(chunk, enc, cb) {
-            if(typeof chunk === "object")
-              results.push(JSON.stringify(chunk));
-            return cb();
-          }
-        }),
-        separator: "\n",
-        readableObjectMode: true,
-        postProcessing(part) {
-          if(part.length)
-            return JSON.parse(part);
-          return part;
+          return target.apply(thisArg, argumentsList);
         }
       });
 
-      strictEqual(
-        results.join("\n"),
-        await fsp.readFile(filepath, "utf-8")
-      );
+      let counter = 0;
+      try {
+        await updateFileContent({
+          from: new Readable({
+            highWaterMark: 5,
+            read(size) {
+              for (let i = 0; i < size; i++) {
+                if (++counter > 10) {
+                  logs.push("I will destroy the Readable now");
+                  this.destroy();
+                  process.nextTick(() => writableStream.destroyed && logs.push(`nextTick: writableStream.destroyed: true`));
+                  return;
+                } else {
+                  this.push(`${Math.random()},\n`);
+                }
+              }
+            }
+          }).once("close", () => logs.push("Event: readableStream closed")),
+          to: writableStream,
+          separator: /,/,
+          join: "$",
+          search: /(.$)/,
+          replacement: "",
+          disablePlaceholders: true
+        });
+      } catch (err) {
+        logs.push(`catch: Error ${err.message}`);
+      } finally {
+        assert.strictEqual(
+          logs.join(" -> "),
+          [
+            "I will destroy the Readable now",
+            "Event: readableStream closed",
+            "Proxy: writableStream.destroy.apply",
+            "nextTick: writableStream.destroyed: true",
+            // "Event: writableStream errored",
+            "catch: Error Premature close"
+          ].join(" -> ")
+        );
+      }
+    });
+
+    it("destroys streams properly if errors occurred during initialization", async () => {
+      const writableStream = createWriteStream(join(__dirname, `./dump${dump_[1]}`));
+  
+      const logs = [];
+  
+      writableStream.destroy = new Proxy(writableStream.destroy, {
+        apply(target, thisArg, argumentsList) {
+          logs.push("Proxy: writableStream.destroy.apply");
+  
+          return target.apply(thisArg, argumentsList);
+        }
+      });
+  
+      try {
+        await updateFileContent({
+          from: new Readable({
+            highWaterMark: 5,
+            read(size) {
+              this.push("honk honk");
+            }
+          }).once("close", () => logs.push("Event: readableStream closed")),
+          to: writableStream,
+          truncate: true,
+          limit: 1,
+          separator: /honk/,
+          join: "honking intensifies",
+          search: /$./,
+          replacement: "$`",
+          disablePlaceholders: true,
+          encoding: "A super evil text."
+        });
+      } catch (err) {
+        logs.push(`catch: Error ${err.message}`);
+      } finally {
+        assert.strictEqual(
+          logs.join(" -> "),
+          [
+            "Proxy: writableStream.destroy.apply",
+            "Event: readableStream closed",
+            "catch: Error Unknown encoding: A super evil text."
+          ].join(" -> ")
+        );
+      }
     });
 
     it("updateFiles: can correctly propagate errors emitted by readableStreams", async () => {
@@ -729,6 +817,53 @@ describe("Update files", () => {
       );
     });
 
+    it("updateFiles: can handle prematurely ended writableStreams", async () => {
+      await assert.rejects(
+        () => updateFiles({
+          readableStream: new Readable({
+            highWaterMark: 6,
+            read(size) {
+              this.push("Afbdfbdbbdfb".repeat(6));
+              this.push(null);
+            }
+          })
+          ,
+          writableStreams: new Array(10).fill(
+            new Writable({
+              write(chunk, enc, cb) {
+                this.end();
+                return cb();
+              }
+            }).setMaxListeners(50)
+          )
+        }),
+        {
+          name: "Error",
+          message: "Premature close"
+        }
+      );
+    });
+  });
+
+  describe("corner cases", () => {
+    it("can handle empty content", async () => {
+      const filepath = join(__dirname, `./dump${dump$[3]}`);
+      await updateFileContent({
+        file: filepath,
+        separator: /,/,
+        search: /(.|\n)+/,
+        replacement: () => "",
+        isFullReplacement: true,
+        limit: 88,
+        truncate: true
+      });
+
+      strictEqual(
+        '',
+        await fsp.readFile(filepath, "utf-8")
+      );
+    });
+
     it("can handle non-string in regular expression split result", async () => {
       await updateFileContent({
         readableStream: new Readable({
@@ -749,111 +884,6 @@ describe("Update files", () => {
         disablePlaceholders: true
       });
     });
-
-    it("can handle premature stream close when piping", async () => {
-      // streams by themselves can only propagate errors up but not down.
-      const writableStream =
-        createWriteStream(join(__dirname, `./dump${dump_[1]}`))
-        // .once("error", () => logs.push("Event: writableStream errored"))
-        // see https://github.com/edfus/update-file-content/runs/1641959273
-        ;
-
-      const logs = [];
-
-      writableStream.destroy = new Proxy(writableStream.destroy, {
-        apply(target, thisArg, argumentsList) {
-          logs.push("Proxy: writableStream.destroy.apply");
-
-          return target.apply(thisArg, argumentsList);
-        }
-      });
-
-      let counter = 0;
-      try {
-        await updateFileContent({
-          from: new Readable({
-            highWaterMark: 5,
-            read(size) {
-              for (let i = 0; i < size; i++) {
-                if (++counter > 10) {
-                  logs.push("I will destroy the Readable now");
-                  this.destroy();
-                  process.nextTick(() => writableStream.destroyed && logs.push(`nextTick: writableStream.destroyed: true`));
-                  return;
-                } else {
-                  this.push(`${Math.random()},\n`);
-                }
-              }
-            }
-          }).once("close", () => logs.push("Event: readableStream closed")),
-          to: writableStream,
-          separator: /,/,
-          join: "$",
-          search: /(.$)/,
-          replacement: "",
-          disablePlaceholders: true
-        });
-      } catch (err) {
-        logs.push(`catch: Error ${err.message}`);
-      } finally {
-        assert.strictEqual(
-          logs.join(" -> "),
-          [
-            "I will destroy the Readable now",
-            "Event: readableStream closed",
-            "Proxy: writableStream.destroy.apply",
-            "nextTick: writableStream.destroyed: true",
-            // "Event: writableStream errored",
-            "catch: Error Premature close"
-          ].join(" -> ")
-        );
-      }
-    });
-  });
-
-  it("can properly destroy streams if errors occurred during initialization", async () => {
-    const writableStream = createWriteStream(join(__dirname, `./dump${dump_[1]}`));
-
-    const logs = [];
-
-    writableStream.destroy = new Proxy(writableStream.destroy, {
-      apply(target, thisArg, argumentsList) {
-        logs.push("Proxy: writableStream.destroy.apply");
-
-        return target.apply(thisArg, argumentsList);
-      }
-    });
-
-    try {
-      await updateFileContent({
-        from: new Readable({
-          highWaterMark: 5,
-          read(size) {
-            this.push("honk honk");
-          }
-        }).once("close", () => logs.push("Event: readableStream closed")),
-        to: writableStream,
-        truncate: true,
-        limit: 1,
-        separator: /honk/,
-        join: "honking intensifies",
-        search: /$./,
-        replacement: "$`",
-        disablePlaceholders: true,
-        encoding: "A super evil text."
-      });
-    } catch (err) {
-      logs.push(`catch: Error ${err.message}`);
-    } finally {
-      assert.strictEqual(
-        logs.join(" -> "),
-        [
-          "Proxy: writableStream.destroy.apply",
-          "Event: readableStream closed",
-          "catch: Error Unknown encoding: A super evil text."
-        ].join(" -> ")
-      );
-    }
   });
 
   describe("try-on", () => {
