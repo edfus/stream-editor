@@ -53,15 +53,15 @@ function matchImport (addtionalPattern) {
 }
 ```
 
-Special replacement patterns (parenthesized capture group placeholders) are well supported in a partial replacement, either for function replacements or string replacements. And all other concepts are designed to keep firmly to their origins in vanilla String.prototype.replace method, though the $& (also the 1st supplied value to replace function) and $1 (the 2nd param passed) always have a same value, supplying the matched substring in the 1st parenthesized capture group.
+Special replacement patterns (parenthesized capture group placeholders) are well supported in a partial replacement, either for function replacements or string replacements. And all other concepts are designed to keep firmly to their origins in vanilla String.prototype.replace method, though the $& (also the 1st supplied value to replace function) and $1 (the 2nd param passed) always have the same value, supplying the matched substring in 1st PCG.
 
 You can specify a truthy `isFullReplacement` to perform a full replacment instead.
 
 ### Updating content of files in streaming fashion.
 
-This package will create a readable and writable stream connected to a single file at the same time, disallowing any write operations to advance further than the current reading index. This feature is based on [rw-stream](https://github.com/signicode/rw-stream)'s great work.
+This package will create readable and writable streams connected to a single file at the same time, while disallowing any write operations to advance further than the current reading index. This feature is based on [rw-stream](https://github.com/signicode/rw-stream)'s great work.
 
-To accommodate RegEx replacement (which requires intact strings rather than chunks that may begin or end at any position) with streams, this package brings `separator` (default: `/(?<=\r?\n)/`) and `join` (default: `''`) options into use. You should NOT specify separators that may divide a RegEx search targeted text, which would result in undefined behavior.
+To accommodate RegEx replacement (which requires intact strings rather than chunks that may begin or end at any position) with streams, this package brings `separator` (default: `/(?<=\r?\n)/`) and `join` (default: `''`) options into use. You should NOT specify separators that may divide text structures targeted by your RegEx searches, which would result in undefined behavior.
 
 Moreover, as the RegEx replacement part in `options` is actually optional, this package can be used to break up streams and reassemble them like [split2](https://github.com/mcollina/split2) does:
 
@@ -94,7 +94,7 @@ await updateFileContent({
 });
 ```
 
-You can specify `null` as the `separator` to disable the split.
+You can specify `null` as the `separator` to completely disable splitting.
 
 ### Setting limits on Regular Expressions' maximum executed times
 
@@ -133,7 +133,7 @@ updateFiles({
 });
 ```
 
-Once the limit specified by option `limit` is reached, if option `truncate` is falsy (false by default), underlying transform stream will become a transparent passThrough stream, otherwise a truncation will be performed, while `maxTimes` just performs a removal on that search.
+Once the limit specified by option `limit` is reached, if option `truncate` is falsy (false by default), underlying transform stream will become a transparent passThrough stream, otherwise the remaining part will be discarded, while `maxTimes` just performs a removal on that search.
 
 ### Transcoding streams or files
 
@@ -146,7 +146,7 @@ updateFileContent({
 });
 ```
 
-Option `decodeBuffers` is the specific character encoding, like utf-8, iso-8859-2, koi8, cp1261, gbk, etc for decoding the input raw buffer. Some encodings are only available for Node embedded the entire ICU but the good news is full-icu has been made the default since v14+ (see <https://github.com/nodejs/node/pull/29522>).
+Option `decodeBuffers` is the specific character encoding, like utf-8, iso-8859-2, koi8, cp1261, gbk, etc for decoding the input raw buffer. Some encodings are only available for Node embedded the entire ICU but the good news is that full-icu has been made the default since v14+ (see <https://github.com/nodejs/node/pull/29522>).
 
 Note that option `decodeBuffers` only makes sense when no encoding is assigned and stream data are passed as buffers. Below are some wrong input examples:
 
@@ -168,7 +168,7 @@ updateFileContent({
 });
 ```
 
-Option `encoding` is for encoding processed and joined strings to buffers with according encoding. Currently following options are supported by Node.js: `ascii`, `utf8`, `utf-8`, `utf16le`, `ucs2`, `ucs-2`, `base64`, `latin1`, `binary`, `hex`.
+Option `encoding` is for encoding all processed and joined strings to buffers with according encoding. Following options are supported by Node.js: `ascii`, `utf8`, `utf-8`, `utf16le`, `ucs2`, `ucs-2`, `base64`, `latin1`, `binary`, `hex`.
 
 ### Piping/teeing/confluencing streams with proper error handling & propagation
 
@@ -188,10 +188,11 @@ updateFiles({
   from: yamlFiles,
   to: createWriteStream(resultPath),
   contentJoin: "\n\n" // join streams
+  // the encoding of contentJoin respects the `encoding` option
 });
 ```
 
-Tee:
+Teeing:
 ```js
 updateFiles({
   readableStream: new Readable({
@@ -205,11 +206,11 @@ updateFiles({
 });
 ```
 
-You can have a look at error handling & propagation tests [here](https://github.com/edfus/update-file-content/blob/260804514e622cedffaaa4869101133256501da4/test/test.mjs#L502-L741).
+You can have a look at tests regarding error handling [here](https://github.com/edfus/update-file-content/blob/85665e5a9f53a724dab7a42a2d15301eaafddfc2/test/test.mjs#L578-L846).
 
 ### No dependency
 
-update-file-content previously depends on [rw-stream](https://github.com/signicode/rw-stream), but for some historical reasons, I refactored rw-stream and bundled it as part of this package. See [src/rw-stream](https://github.com/edfus/update-file-content/blob/master/src/rw-stream/index.mjs).
+update-file-content previously depends on [rw-stream](https://github.com/signicode/rw-stream), but for some historical reasons, I refactored rw-stream and bundled it as a part of this package. See [src/rw-stream](https://github.com/edfus/update-file-content/blob/master/src/rw-stream/index.mjs).
 
 Currently, update-file-content has zero dependency.
 
@@ -227,11 +228,11 @@ See <https://github.com/edfus/update-file-content/tree/master/test>.
     √ can handle pattern starts with a capture group
     √ can handle partial replacement but without capture groups
     √ can await replace partially with function
-    √ recognize $& $` $' and check validity (throw warnings)
+    √ recognize $\d{1,3} $& $` $' and check validity (throw warnings)
 
   Update files
     √ should check arguments
-    √ should pipe one Readable to multiple dumps (55ms)
+    √ should pipe one Readable to multiple dumps (57ms)
     √ should replace CRLF with LF
     √ should have replaced /dum(b)/i to dumpling (while preserving dum's case)
     √ should have global and local limitations in replacement amount
@@ -261,15 +262,17 @@ See <https://github.com/edfus/update-file-content/tree/master/test>.
       √ can handle files larger than 16KiB
 
 
-  32 passing (299ms)
+  32 passing (295ms)
 
 ```
 
 ## API
 
-This package has two named exports: `updateFileContent` & `updateFiles`;
+This package has two named exports: `updateFileContent`, `updateFiles`.
 
-`updateFileContent` returns a promise that resolves to undefined for file update, a promise that resolves to `writeStream|to`'s reference for stream transforming. `updateFiles<T extends WritableOrVoid>` returns `Promise<T[] | T>`;
+`updateFileContent` returns a promise that resolves to undefined for updating file, or a promise that resolves to `writeStream|to`'s reference for stream transforming.
+
+`updateFiles` returns `Promise<T[] | T>`, where T is a generic extending `WritableOrVoid`;
 
 ### Update options:
 ```ts

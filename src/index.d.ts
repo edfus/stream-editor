@@ -354,7 +354,7 @@ interface ReadableToMultipleWritablesOptions<T> extends BasicOptions {
    */
   from: Readable;
   /**
-   * An array of Writable streams, preferably being a same type.
+   * An array of Writable streams, preferably being the same type.
    */
   to: Array<T>;
 }
@@ -367,7 +367,7 @@ interface ReadableToMultipleWritablesOptionsAlias<T> extends BasicOptions {
   readableStream: Readable;
   /**
    * Alias of `to`.
-   * An array of Writable streams, preferably being a same type.
+   * An array of Writable streams, preferably being the same type.
    */
   writableStreams: Array<T>;
 }

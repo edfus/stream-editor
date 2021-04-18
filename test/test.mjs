@@ -576,7 +576,6 @@ describe("Update files", () => {
   });
 
   describe("error handling", () => {
-    
     it("destroys streams properly when one of them closed prematurely", async () => {
       // streams by themselves can only propagate errors up but not down.
       const writableStream =

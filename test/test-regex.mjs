@@ -256,7 +256,7 @@ describe("Normalize & Replace", () => {
     );
   });
 
-  it("recognize $& $` $' and check validity (throw warnings)", async () => {
+  it("recognize $\\d{1,3} $& $` $' and check validity (throw warnings)", async () => {
     const { replace: replace_f } = new Replacer({
       match: /\w+$/,
       replacement: "($`!)$&$$$'$999",
