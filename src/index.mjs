@@ -43,7 +43,7 @@ function substituteCaptureGroupPlaceholders (target, $and, ...rest) {
           
           return parts.preceded;
         case "'":
-          // 	Inserts the portion of the string that follows the matched substring.
+          // Inserts the portion of the string that follows the matched substring.
           if(!parts) {
             parts = {
               preceded: string.substring(0, offset),
@@ -437,7 +437,7 @@ async function updateFiles ( options ) {
       if(validate(...sources, Readable)) {
         const resultStreams = [];
         
-        const resultPromises = sources.map ( //
+        const resultPromises = sources.map (
           src => {
             const passThrough = new PassThrough();
             resultStreams.push(passThrough);
@@ -557,8 +557,10 @@ async function updateFiles ( options ) {
             await Promise.all(
               dests.map(
                 writableStream => new Promise((resolve, reject) => {
-                  // writableStream.removeListener("error", onError);
-                  writableStream.end(resolve);
+                  writableStream.end(() => {
+                    writableStream.removeListener("error", onError);
+                    return resolve();
+                  });
                 })
               )
             );
