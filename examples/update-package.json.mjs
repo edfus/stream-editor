@@ -1,5 +1,5 @@
 import { join } from "path";
-import { sed } from "../src/index.mjs";
+import { streamEdit } from "../src/index.mjs";
 import { root_directory } from "./helpers/__dirname.mjs";
 import { processFiles } from "./helpers/process-files.mjs";
 
@@ -18,7 +18,7 @@ Promise.all(
     )
   ))
   .then(() => {
-    return sed({
+    return streamEdit({
         file: join(root_directory, "./package.json"),
         replace: [
           {

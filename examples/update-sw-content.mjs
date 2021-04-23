@@ -1,11 +1,11 @@
 import { join } from 'path';
-import { sed } from "../src/index.mjs";
+import { streamEdit } from "../src/index.mjs";
 import { processFiles } from "./helpers/process-files.mjs";
 import { __dirname, root_directory } from "./helpers/__dirname.mjs";
 
 const mode = ["network-first", "offline-first"][1];
 
-sed({
+streamEdit({
   file: join(__dirname, "./service-worker/service-worker.js"),
   replace: [
     {
@@ -58,7 +58,7 @@ function decode (filename) {
 }
 
 async function _updateCache(filename, replacement) {
-  return sed({
+  return streamEdit({
       file: join(__dirname, "./service-worker/assets/", filename),
       search: /export\s+default\s+\[((.|\n)*?)\];/,
       replacement,

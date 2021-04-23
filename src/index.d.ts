@@ -163,7 +163,7 @@ interface BasicOptions extends ReplaceOptions {
    * passed as Buffer objects (that is, haven't done something like
    * readable.setEncoding('utf8'));
    * 
-   * Example: sed({
+   * Example: streamEdit({
    *    from: createReadStream("gbk.txt"),
    *    to: createWriteStream("utf8.txt"),
    *    decodeBuffers: "gbk"
@@ -210,7 +210,7 @@ interface BasicOptions extends ReplaceOptions {
 
 type WritableOrVoid = Writable | void;
 
-// sed - file
+// streamEdit - file
 interface UpdateFileOptions extends BasicOptions {
   /**
    * Path to the file.
@@ -236,8 +236,7 @@ interface UpdateFileOptions extends BasicOptions {
   writeStart?: number;
 }
 
-// sed - TransformReadable
-
+// streamEdit - TransformReadable
 interface TransformReadableOptions<T> extends BasicOptions {
   /**
    * A Readable stream.
@@ -260,19 +259,7 @@ interface TransformReadableOptionsAlias<T> extends BasicOptions {
   writableStream: T;
 }
 
-/**
- * update file content, or transform/transcode/truncate streams 
- * 
- * P.S. TS doesn't support overloading functions with same
- * number of parameters, so a huge union is there 😀
- */
-export declare function sed<T extends WritableOrVoid>(
-  options: UpdateFileOptions | TransformReadableOptions<T> | TransformReadableOptionsAlias<T>
-): Promise<T>;
-
-
-// sed - files
-
+// streamEdit - files
 interface UpdateFilesOptions extends BasicOptions {
   /**
    * A array of filepaths.
@@ -302,7 +289,7 @@ interface UpdateFilesOptions extends BasicOptions {
   writeStart?: number;
 }
 
-// sed - readables -> writable
+// streamEdit - readables -> writable
 
 interface MultipleReadablesToWritableOptions<T> extends BasicOptions {
   /**
@@ -346,7 +333,7 @@ interface MultipleReadablesToWritableOptionsAlias<T> extends BasicOptions {
   contentJoin: string | Buffer;
 }
 
-// sed - readable -> writables
+// streamEdit - readable -> writables
 
 interface ReadableToMultipleWritablesOptions<T> extends BasicOptions {
   /**
@@ -380,8 +367,10 @@ interface ReadableToMultipleWritablesOptionsAlias<T> extends BasicOptions {
  * P.S. TS doesn't support overloading functions with same
  * number of parameters, so a huge union is there 😀
  */
-export declare function sed<T extends WritableOrVoid>(
+export declare function streamEdit<T extends WritableOrVoid>(
   options: 
+
+    UpdateFileOptions | TransformReadableOptions<T> | TransformReadableOptionsAlias<T> |
 
     UpdateFilesOptions |
     
@@ -389,3 +378,5 @@ export declare function sed<T extends WritableOrVoid>(
     
     ReadableToMultipleWritablesOptions<T> | ReadableToMultipleWritablesOptionsAlias<T>
 ): Promise< T[] | T >;
+
+export const sed = streamEdit;

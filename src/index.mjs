@@ -512,7 +512,7 @@ async function verbose(err, parsedOptions, orinOptions) {
 /**
  * main
  */
-async function sed (options) {
+async function streamEdit (options) {
   if(typeof options !== "object")
     throw new TypeError(`stream-editor: non-object '${options}' is passed as the options.`)
   
@@ -785,4 +785,4 @@ function validate(...args) {
   }
 }
 
-export { sed };
+export { streamEdit, streamEdit as sed };
