@@ -10,7 +10,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 process.env.NODE_DISABLE_COLORS = 1;
 
-describe("Stream edit", () => {
+describe("Edit streams", () => {
   const char_map = "dbdbdbThisIsADumbTestbbbsms".split("");
   const dump$ = [
     "-dumplings", "-limitations",

@@ -1,6 +1,6 @@
-# Stream-editor
+# Stream-Editor
 
-Utility for executing RegEx replacement on streams as well as transcoding/teeing/confluencing them.
+Execute RegEx replacement on streams as well as transcode/tee/confluence them.
 
 [![npm](https://img.shields.io/npm/v/stream-editor?logo=npm)](https://www.npmjs.com/package/stream-editor)
 [![install size](https://packagephobia.com/badge?p=stream-editor)](https://packagephobia.com/result?p=stream-editor)
@@ -17,7 +17,7 @@ Utility for executing RegEx replacement on streams as well as transcoding/teeing
     * [No dependency](#no-dependency)
     * [High coverage tests](#high-coverage-tests)
 * [API](#api)
-    * [overview](#overview)
+    * [Overview](#overview)
     * [Options for replacement](#options-for-replacement)
     * [Options for stream transform](#options-for-stream-transform)
     * [Options for stream input/output](#options-for-stream-inputoutput)
@@ -234,9 +234,11 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
     √ can await replace partially with function
     √ recognize $\d{1,3} $& $` $' and check validity (throw warnings)
 
-  Stream edit
+  Edit streams
     √ should check arguments
-    √ should pipe one Readable to multiple dumps (54ms)
+    √ should warn unknown/unneeded options
+    √ should respect FORCE_COLOR, NO_COLOR, NODE_DISABLE_COLORS
+    √ should pipe one Readable to multiple dumps (60ms)
     √ should replace CRLF with LF
     √ should have replaced /dum(b)/i to dumpling (while preserving dum's case)
     √ should have global and local limitations in replacement amount
@@ -266,21 +268,19 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
       √ can handle files larger than 16KiB
 
 
-  32 passing (301ms)
+  34 passing (321ms)
 
 ```
 
 ## API
 
-### overview
+### Overview
 
-This package has two named exports: function `streamEdit`, function `sed` (an alias for `streamEdit`).
+This package has two named function exports: `streamEdit` and `sed` (an alias for `streamEdit`).
 
-For file editing, `streamEdit` returns a promise that resolves to `undefined` or an array of `undefined` for updating file\[s\].
+`streamEdit` returns a promise that resolves to `void | void[]` for files, a promise that resolves to `Writable[] | Writable` for streams (which keeps output streams' references).
 
-For stream editing, `streamEdit` returns `Promise<Writable[] | Writable>`, which resolves to output stream\[s\]'reference\[s\];
-
-function `streamEdit` accepts an object input with one or more following options:
+An object input with one or more following options is acceptable to `streamEdit`:
 
 ### Options for replacement
 
@@ -293,11 +293,8 @@ function `streamEdit` accepts an object input with one or more following options
 | isFullReplacement | x | `boolean`               | ✔       |  `false`     |
 | disablePlaceholders |x| `boolean`               | ✔       |  `false`     |
 | replace       |   x   | an `Array` of { `search`, `replacement` }        | ✔ | none |
-
-| name          | alias | expect                  | safe to ignore | default    |
-| :--:          |  :-:  | :-----:                 | :-:      |  :--:      |
 | join          |   x   | `string` \| `(part: string) => string` \| `null` | ✔ | `part => part`  |
-| postProcessing|   x   | `(part: string, isLastPart: boolean) => any`    | ✔ | none  |
+| postProcessing|   x   | `(part: string, isLastPart: boolean) => any`     | ✔ | none  |
 
 ```ts
 type GlobalLimit = number;
@@ -423,6 +420,7 @@ interface BasicOptions extends ReplaceOptions {
 | maxLength     |   x   | `number`                | ✔       |  `Infinity`  |
 | readableObjectMode| x | `boolean`               | ✔       |  `false`     |
 
+Options that are only available under certain context:
 | name          | alias | expect                  | context  | default    |
 | :--:          |  :-:  | :-----:                 | :-:      |  :--:            |
 | readStart     |   x   | `number`                | file\[s\]|  `0`         |

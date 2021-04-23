@@ -10,18 +10,15 @@ const captureGroupPlaceholdersPatternGlobal = new RegExp(captureGroupPlaceholder
 // (?!\?) alone is enough, as /(?/ is an invalid RegExp
 const splitToPCGroupsPattern = /(.*?)(?<!\\)\((?!\?)(.*)(?<!\\)\)(.*)/;
 
-const isColorEnabled = (
-  "FORCE_COLOR" in process.env
-  ? [1, 2, 3, "", true, "1", "2", "3", "true"].includes(process.env.FORCE_COLOR)
-  : !(
-    process.env.NODE_DISABLE_COLORS == 1 // using == by design
-    ||
-    "NO_COLOR" in process.env
-  )
+const checkIsColorEnabled = (
+  tty =>
+    "FORCE_COLOR" in process.env
+    ? [1, 2, 3, "", true, "1", "2", "3", "true"].includes(process.env.FORCE_COLOR)
+    : !(
+      "NO_COLOR" in process.env ||
+      process.env.NODE_DISABLE_COLORS == 1 // using == by design
+    ) && tty.isTTY
 );
-
-const stdoutIsTTY = process.stdout.isTTY;
-const stderrIsTTY = process.stderr.isTTY;
 
 function substituteCaptureGroupPlaceholders(target, $and, ...rest) {
   let i = 0;
@@ -70,12 +67,7 @@ function substituteCaptureGroupPlaceholders(target, $and, ...rest) {
           const i = parseInt(n) - 1;
           // a positive integer less than 100, inserts the nth parenthesized submatch string
           if (typeof i !== "number" || i >= pArray.length || i < 0) {
-            const warning = `${$n} is not satisfiable for '${$and}' with PCGs [ ${pArray.join(", ")} ]`;
-            if(isColorEnabled && stdoutIsTTY) {
-              console.warn(`\x1b[33m${warning}\x1b[0m`);
-            } else {
-              console.warn(warning);
-            }
+            warn(`${$n} is not satisfiable for '${$and}' with PCGs [ ${pArray.join(", ")} ]`);
             return $n; // as a literal
           }
           return pArray[i];
@@ -121,39 +113,35 @@ function _getReplaceFunc(options) {
     }
     postProcessing = options.postProcessing;
   } else {
-    if ("join" in options) {
-      const join_option = options.join; // for garbage collection
+    const join_option = options.join; // for garbage collection
 
-      let join_func;
-      switch (typeof join_option) {
-        case "function":
-          join_func = options.join;
-          break;
-        case "string":
-          join_func = part => part.concat(join_option);
-          break;
-        case "undefined":
+    let join_func;
+    switch (typeof join_option) {
+      case "function":
+        join_func = options.join;
+        break;
+      case "string":
+        join_func = part => part.concat(join_option);
+        break;
+      case "undefined":
+        join_func = part => part;
+        break;
+      case "object":
+        if (join_option === null) {
           join_func = part => part;
           break;
-        case "object":
-          if (join_option === null) {
-            join_func = part => part;
-            break;
-          }
-        /* fall through */
-        default: throw new TypeError(
-          "stream-editor: replaceOptions.join '"
-          + String(options.join)
-          + "' is invalid."
-        );
-      }
-
-      postProcessing = (part, isLastPart) => {
-        return isLastPart ? part : join_func(part);
-      };
-    } else {
-      postProcessing = part => part;
+        }
+      /* fall through */
+      default: throw new TypeError(
+        "stream-editor: replaceOptions.join '"
+        + String(options.join)
+        + "' is invalid."
+      );
     }
+
+    postProcessing = (part, isLastPart) => {
+      return isLastPart ? part : join_func(part);
+    };
   }
 
   let replaceSet;
@@ -287,8 +275,8 @@ function _getReplaceFunc(options) {
                           const i = parseInt(n) - 1;
                           // a positive integer less than 100, inserts the nth parenthesized submatch string
                           if (typeof i !== "number" || i >= userDefinedGroups.length || i < 0) {
-                            console.warn(
-                              `\x1b[33m${$n} is not satisfiable for '${wholeMatch}' with PCGs [ ${userDefinedGroups.join(", ")} ]`
+                            warn(
+                              `${$n} is not satisfiable for '${wholeMatch}' with PCGs [ ${userDefinedGroups.join(", ")} ]`
                             );
                             return $n; // as a literal
                           }
@@ -403,7 +391,7 @@ class Options {
       }
     }
     if (unknownOptions.length) {
-      console.warn(
+      warn(
         `stream-editor: Received unknown/unneeded options: ${unknownOptions.join(', ')}.`
       );
     }
@@ -496,18 +484,26 @@ async function verbose(err, parsedOptions, orinOptions) {
 
   const indent = " ".repeat(2);
   const depth  = 1;
-  const color  = isColorEnabled && stderrIsTTY;
+  const colors  = checkIsColorEnabled(process.stderr);
 
   err.message = err.message.concat([
     "\nParsed options: {",
     ...Object.entries(parsedOptions).map(([key, value]) => 
-      indent.concat(`${key}: ${inspect(value, { depth, color }).replace(/\n/g, `\n${indent}`)}`)
+      indent.concat(`${key}: ${inspect(value, { depth, colors }).replace(/\n/g, `\n${indent}`)}`)
     ),
     "}\n",
-    `Original options: ${inspect(orinOptions, { depth, color })}`
+    `Original options: ${inspect(orinOptions, { depth, colors })}`
   ].join("\n").replace(/\n/g, `\n${indent}`));
 
   return err;
+}
+
+function warn (warning) {
+  if(checkIsColorEnabled(process.stdout)) {
+    console.warn(`\x1b[33m${warning}\x1b[0m`);
+  } else {
+    console.warn(warning);
+  }
 }
 
 /**
@@ -549,7 +545,7 @@ async function streamEdit (options) {
     } else {
       throw await verbose(
         new TypeError(
-          "stream-editor: streamOptions.(readableStream|writableStream|from|to) is invalid."
+          "stream-editor: streamOptions.(readableStream|writableStream) is invalid."
         ),
         { transformOptions, streamOptions },
         options
