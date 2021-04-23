@@ -465,11 +465,11 @@ function normalizeOptions(options) {
     file: getOption("file"),
     files: getOption("files"),
 
-    readableStream: readableStream || getOption("source") || getOption("readableStream"),
-    writableStream: writableStream || getOption("destination") || getOption("writableStream"),
+    readableStream: readableStream || getOption("readableStream"),
+    writableStream: writableStream || getOption("writableStream"),
 
-    sources: sources || getOption("sources") || getOption("readableStreams"),
-    destinations: destinations || getOption("destinations") || getOption("writableStreams")
+    sources: sources || getOption("readableStreams"),
+    destinations: destinations || getOption("writableStreams")
   };
 
   warnUnknown();

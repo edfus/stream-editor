@@ -10,20 +10,17 @@ Utility for executing RegEx replacement on streams as well as transcoding/teeing
 
 * [Features](#features)
     * [Partial replacement](#partial-replacement)
-    * [Updating content of files in streaming fashion](#updating-content-of-files-in-streaming-fashion)
+    * [Substituting texts within files in streaming fashion](#substituting-texts-within-files-in-streaming-fashion)
     * [Setting limits on Regular Expressions' maximum executed times](#setting-limits-on-regular-expressions-maximum-executed-times)
     * [Transcoding streams or files](#transcoding-streams-or-files)
     * [Piping/teeing/confluencing streams with proper error handling &amp; propagation](#pipingteeingconfluencing-streams-with-proper-error-handling--propagation)
     * [No dependency](#no-dependency)
     * [High coverage tests](#high-coverage-tests)
 * [API](#api)
-    * [Update options](#update-options)
-    * [Stream options](#stream-options)
-      * [updateFileContent - file](#updatefilecontent---file)
-      * [updateFileContent - transform Readable](#updatefilecontent---transform-readable)
-      * [updateFiles - files](#updatefiles---files)
-      * [updateFiles - readables -&gt; writable](#updatefiles---readables---writable)
-      * [updateFiles - readable -&gt; writables](#updatefiles---readable---writables)
+    * [overview](#overview)
+    * [Options for replacement](#options-for-replacement)
+    * [Options for stream transform](#options-for-stream-transform)
+    * [Options for stream input/output](#options-for-stream-inputoutput)
 * [Examples](#examples)
 
 ## Features
@@ -35,6 +32,8 @@ A partial replacement is replacing only the 1st parenthesized capture group subs
 Take the following snippet converting something like `import x from "../src/x.mjs"` into `import x from "../build/x.mjs"` as an example:
 
 ```js
+import { sed as updateFileContent } from "stream-editor" ;
+
 updateFileContent({
   file: "index.mjs",
   search: matchParentFolderImport(/(src\/(.+?))/),
@@ -57,7 +56,7 @@ Special replacement patterns (parenthesized capture group placeholders) are well
 
 You can specify a truthy `isFullReplacement` to perform a full replacment instead.
 
-### Updating content of files in streaming fashion.
+### Substituting texts within files in streaming fashion
 
 This package will create readable and writable streams connected to a single file at the same time, while disallowing any write operations to advance further than the current reading index. This feature is based on [rw-stream](https://github.com/signicode/rw-stream)'s great work.
 
@@ -66,17 +65,20 @@ To accommodate RegEx replacement (which requires intact strings rather than chun
 Moreover, as the RegEx replacement part in `options` is actually optional, this package can be used to break up streams and reassemble them like [split2](https://github.com/mcollina/split2) does:
 
 ```js
+// named export sed is an alias for streamEdit
+const { streamEdit } = require("stream-editor");
+
 const filepath = join(__dirname, `./file.ndjson`);
 
 /* replace CRLF with LF */
-await updateFileContent({
+await streamEdit({
   file: filepath,
   separator: "\r\n",
   join: "\n"
 });
 
 /* parse ndjson */
-await updateFileContent({
+await streamEdit({
   from: createReadStream(filepath),
   to: new Writable({
     objectMode: true,
@@ -101,6 +103,8 @@ You can specify `null` as the `separator` to completely disable splitting.
 This is achieved by altering all `replacement` into replacement functions and adding layers of proxying on them.
 
 ```js
+const { sed: updateFiles } = require("stream-editor");
+
 /**
  * add "use strict" plus a compatible line ending
  * to the beginning of every commonjs file.
@@ -138,7 +142,7 @@ Once the limit specified by option `limit` is reached, if option `truncate` is f
 ### Transcoding streams or files
 
 ```js
-updateFileContent({
+streamEdit({
   from: createReadStream("gbk.txt"),
   to: createWriteStream("hex.txt"),
   decodeBuffers: "gbk",
@@ -151,7 +155,7 @@ Option `decodeBuffers` is the specific character encoding, like utf-8, iso-8859-
 Note that option `decodeBuffers` only makes sense when no encoding is assigned and stream data are passed as buffers. Below are some wrong input examples:
 
 ```js
-updateFileContent({
+streamEdit({
   from: 
     createReadStream("gbk.txt").setEncoding("utf8"),
   to: createWriteStream("hex.txt"),
@@ -159,7 +163,7 @@ updateFileContent({
   encoding: "hex"
 });
 
-updateFileContent({
+streamEdit({
   from: 
     createReadStream("gbk.txt", "utf8"),
   to: createWriteStream("hex.txt"),
@@ -184,7 +188,7 @@ const yamlFiles = await (
       )
 );
 
-updateFiles({
+streamEdit({
   from: yamlFiles,
   to: createWriteStream(resultPath),
   contentJoin: "\n\n" // join streams
@@ -194,7 +198,7 @@ updateFiles({
 
 Teeing:
 ```js
-updateFiles({
+streamEdit({
   readableStream: new Readable({
     read(size) {
       // ...
@@ -230,14 +234,14 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
     √ can await replace partially with function
     √ recognize $\d{1,3} $& $` $' and check validity (throw warnings)
 
-  Update files
-    √ should check arguments (41ms)
-    √ should pipe one Readable to multiple dumps (51ms)
+  Stream edit
+    √ should check arguments
+    √ should pipe one Readable to multiple dumps (54ms)
     √ should replace CRLF with LF
     √ should have replaced /dum(b)/i to dumpling (while preserving dum's case)
     √ should have global and local limitations in replacement amount
     √ should have line buffer maxLength
-    √ should update and combine multiple Readable into one Writable
+    √ should edit and combine multiple Readable into one Writable
     √ has readableObjectMode
     truncation & limitation
       √ truncating the rest when limitations reached
@@ -249,12 +253,12 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
     error handling
       √ destroys streams properly when one of them closed prematurely
       √ destroys streams properly if errors occurred during initialization
-      √ updateFiles: can correctly propagate errors emitted by readableStreams
-      √ updateFiles: can handle prematurely destroyed readableStreams
-      √ updateFiles: can correctly propagate errors emitted by writableStream
-      √ updateFiles: can correctly propagate errors emitted by writableStreams
-      √ updateFiles: can handle prematurely destroyed writableStreams
-      √ updateFiles: can handle prematurely ended writableStreams
+      √ multiple streams: can correctly propagate errors emitted by readableStreams
+      √ multiple streams: can handle prematurely destroyed readableStreams
+      √ multiple streams: can correctly propagate errors emitted by writableStream
+      √ multiple streams: can correctly propagate errors emitted by writableStreams
+      √ multiple streams: can handle prematurely destroyed writableStreams
+      √ multiple streams: can handle prematurely ended writableStreams
     corner cases
       √ can handle empty content
       √ can handle non-string in regular expression split result
@@ -262,24 +266,58 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
       √ can handle files larger than 16KiB
 
 
-  32 passing (745ms)
+  32 passing (301ms)
 
 ```
 
 ## API
 
-This package has two named exports: `updateFileContent`, `updateFiles`.
+### overview
 
-`updateFileContent` returns a promise that resolves to undefined for updating file, or a promise that resolves to `writeStream|to`'s reference for stream transforming.
+This package has two named exports: function `streamEdit`, function `sed` (an alias for `streamEdit`).
 
-`updateFiles` returns `Promise<T[] | T>`, where T is a generic extending `WritableOrVoid`;
+For file editing, `streamEdit` returns a promise that resolves to `undefined` or an array of `undefined` for updating file\[s\].
 
-### Update options:
+For stream editing, `streamEdit` returns `Promise<Writable[] | Writable>`, which resolves to output stream\[s\]'reference\[s\];
+
+function `streamEdit` accepts an object input with one or more following options:
+
+### Options for replacement
+
+| name          | alias | expect                  | safe to ignore | default    |
+| :--:          |  :-:  | :-----:                 | :-:      |  :--:      |
+| search        | match | `string` \| `RegExp`    | ✔       |  none      |
+| replacement   |   x   | `string` \|  `(wholeMatch, ...args) => string`  | ✔  | none |
+| limit         |   x   | `number`                | ✔       |  `Infinity`  |
+| maxTimes      |   x   | `number`                | ✔       |  `Infinity`  |
+| isFullReplacement | x | `boolean`               | ✔       |  `false`     |
+| disablePlaceholders |x| `boolean`               | ✔       |  `false`     |
+| replace       |   x   | an `Array` of { `search`, `replacement` }        | ✔ | none |
+
+| name          | alias | expect                  | safe to ignore | default    |
+| :--:          |  :-:  | :-----:                 | :-:      |  :--:      |
+| join          |   x   | `string` \| `(part: string) => string` \| `null` | ✔ | `part => part`  |
+| postProcessing|   x   | `(part: string, isLastPart: boolean) => any`    | ✔ | none  |
+
 ```ts
 type GlobalLimit = number;
 type LocalLimit = number;
 
-interface BasicReplaceOption {
+interface SearchAndReplaceOption {
+  /**
+   * Correspondence: `String.prototype.replaceAll`'s 1st argument.
+   * 
+   * Accepts a literal string or a RegExp object.
+   * 
+   * Will replace all occurrences by converting input into a global RegExp
+   * object, which means that the according replacement might be invoked 
+   * multiple times for each full match to be replaced.
+   * 
+   * Every `search` and `replacement` not arranged in pairs is silently
+   * discarded in `options`, while in `options.replace` that will result in
+   * an error thrown.
+   */
+  search?: string | RegExp;
   /**
    * Correspondence: String.prototype.replace's 2nd argument.
    * 
@@ -296,22 +334,6 @@ interface BasicReplaceOption {
    */
   replacement?: string | ((wholeMatch: string, ...args: string[]) => string);
   /**
-   * Perform a full replacement or not.
-   * 
-   * A RegExp search without capture groups or a search in string will be
-   * treated as a full replacement silently.
-   */
-  isFullReplacement?: Boolean;
-  /**
-   * Only valid for a string replacement.
-   * 
-   * Disable placeholders in replacement or not. Processed result shall be
-   * exactly the same as the string replacement if set to true.
-   * 
-   * Default: false
-   */
-  disablePlaceholders?: Boolean;
-  /**
    * Apply restriction on certain search's maximum executed times.
    * 
    * Upon reaching the limit, if option `truncate` is falsy (false by default),
@@ -327,30 +349,22 @@ interface BasicReplaceOption {
    * Default: Infinity. 0 is considered as Infinity for this option.
    */
   maxTimes?: number;
-}
-
-interface SearchAndReplaceOption extends BasicReplaceOption {
   /**
-   * Correspondence: `String.prototype.replaceAll`'s 1st argument.
+   * Perform a full replacement or not.
    * 
-   * Accepts a literal string or a RegExp object.
-   * 
-   * Will replace all occurrences by converting input into a global RegExp
-   * object, which means that the according replacement might be invoked 
-   * multiple times for each full match to be replaced.
-   * 
-   * Every `search` and `replacement` not arranged in pairs is silently
-   * discarded in `options`, while in `options.replace` that will result in
-   * an error thrown.
+   * A RegExp search without capture groups or a search in string will be
+   * treated as a full replacement silently.
    */
-  search?: string | RegExp;
-}
-
-interface MatchAndReplaceOption extends BasicReplaceOption {
+  isFullReplacement?: Boolean;
   /**
-   * Alias for options.search.
+   * Only valid for a string replacement.
+   * 
+   * Disable placeholders in replacement or not. Processed result shall be
+   * exactly the same as the string replacement if set to true.
+   * 
+   * Default: false
    */
-  match?: string | RegExp;
+  disablePlaceholders?: Boolean;
 }
 
 interface MultipleReplacementOption {
@@ -372,8 +386,50 @@ interface MultipleReplacementOption {
   replace?: Array<SearchAndReplaceOption | MatchAndReplaceOption>;
 }
 
-type ReplaceOptions = MultipleReplacementOption `OR` MatchAndReplaceOption `OR` SearchAndReplaceOption;
+type ReplaceOptions = MultipleReplacementOption `OR` SearchAndReplaceOption;
 
+interface BasicOptions extends ReplaceOptions {
+  /**
+   * Correspondence: String.prototype.join's 1nd argument, though a function 
+   * is also acceptable.
+   * 
+   * You can specify a literal string or a function that returns the post-processed
+   * part.
+   * 
+   * Example function for appending a CRLF: part => part.concat("\r\n");
+   * 
+   * Default: part => part
+   */
+  join?: string | ((part: string) => string) | null;
+  /**
+   * A post-processing function that consumes transformed strings and returns a
+   * string or a Buffer. This option has higher priority over option `join`.
+   * 
+   * If readableObjectMode is enabled, any object accepted by Node.js objectMode
+   * streams can be returned.
+   */
+  postProcessing: (part: string, isLastPart: boolean) => any
+}
+```
+
+### Options for stream transform
+
+| name          | alias | expect                  | safe to ignore | default    |
+| :--:          |  :-:  | :-----:                 | :-:      |  :--:            |
+| separator     |   x   | `string` \| `RegExp` \| `null`| ✔ |  `/(?<=\r?\n)/`  |
+| encoding      |   x   | `string` \| `null`      | ✔       |  `null`      |
+| decodeBuffers |   x   | `string`                | ✔       |  `"utf8"`    |
+| truncate      |   x   | `boolean`               | ✔       |  `false`     |
+| maxLength     |   x   | `number`                | ✔       |  `Infinity`  |
+| readableObjectMode| x | `boolean`               | ✔       |  `false`     |
+
+| name          | alias | expect                  | context  | default    |
+| :--:          |  :-:  | :-----:                 | :-:      |  :--:            |
+| readStart     |   x   | `number`                | file\[s\]|  `0`         |
+| writeStart    |   x   | `number`                | file\[s\]|  `0`         |
+| contentJoin   |   x   | `string` \| `Buffer`    | readableStreams |  `""` |
+
+```ts
 interface BasicOptions extends ReplaceOptions {
   /**
    * Correspondence: String.prototype.split's 1nd argument.
@@ -392,18 +448,6 @@ interface BasicOptions extends ReplaceOptions {
    */
   separator?: string | RegExp | null;
   /**
-   * Correspondence: String.prototype.join's 1nd argument, though a function 
-   * is also acceptable.
-   * 
-   * You can specify a literal string or a function that returns the post-processed
-   * part.
-   * 
-   * Example function for appending a CRLF: part => part.concat("\r\n");
-   * 
-   * Default: part => part
-   */
-  join?: string | ((part: string) => string) | null;
-  /**
    * Correspondence: encoding of Node.js Buffer.
    * 
    * If specified, then processed and joined strings will be encoded to buffers
@@ -411,9 +455,9 @@ interface BasicOptions extends ReplaceOptions {
    *
    * Node.js currently supportes following options:
    * "ascii" | "utf8" | "utf-8" | "utf16le" | "ucs2" | "ucs-2" | "base64" | "latin1" | "binary" | "hex"
-   * Default: "utf8".
+   * Default: null.
    */
-  encoding?: BufferEncoding;
+  encoding?: BufferEncoding | null;
   /**
    * Correspondence: encodings of WHATWG Encoding Standard TextDecoder.
    * 
@@ -424,7 +468,7 @@ interface BasicOptions extends ReplaceOptions {
    * passed as Buffer objects (that is, haven't done something like
    * readable.setEncoding('utf8'));
    * 
-   * Example: updateFileContent({
+   * Example: streamEdit({
    *    from: createReadStream("gbk.txt"),
    *    to: createWriteStream("utf8.txt"),
    *    decodeBuffers: "gbk"
@@ -459,62 +503,20 @@ interface BasicOptions extends ReplaceOptions {
    * Default: Infinity.
    */
   readableObjectMode?: boolean;
-  /**
-   * A post-processing function that consumes transformed strings and returns a
-   * string or a Buffer. This option has higher priority over option `join`.
-   * 
-   * If readableObjectMode is enabled, any object accepted by Node.js objectMode
-   * streams can be returned.
-   */
-  postProcessing: (part: string, isLastPart: boolean) => any
 }
-```
-### Stream options:
 
-#### updateFileContent - file
-
-```ts
 interface UpdateFileOptions extends BasicOptions {
   file: string;
   readStart?: number;
   writeStart?: number;
 }
-function updateFileContent(options: UpdateFileOptions): Promise<void>;
-```
 
-#### updateFileContent - transform Readable
-
-```ts
-interface TransformReadableOptions<T> extends BasicOptions {
-  from: Readable;
-  to: T;
-}
-
-interface TransformReadableOptionsAlias<T> extends BasicOptions {
-  readableStream: Readable;
-  writableStream: T;
-}
-
-function updateFileContent<T extends Writable>(
-  options: TransformReadableOptions<T> | TransformReadableOptionsAlias<T>
-): Promise<T>;
-```
-
-#### updateFiles - files
-
-```ts
 interface UpdateFilesOptions extends BasicOptions {
   files: string[];
   readStart?: number;
   writeStart?: number;
 }
 
-function updateFiles(options: UpdateFilesOptions): Promise<void>;
-```
-
-#### updateFiles - readables -> writable
-
-```ts
 interface MultipleReadablesToWritableOptions<T> extends BasicOptions {
   from: Array<Readable>;
   to: T;
@@ -532,29 +534,74 @@ interface MultipleReadablesToWritableOptionsAlias<T> extends BasicOptions {
   writableStream: T;
   contentJoin: string | Buffer;
 }
+```
 
-function updateFiles<T extends Writable>(
-  options: 
-    MultipleReadablesToWritableOptionsAlias<T> | MultipleReadablesToWritableOptions<T>
+### Options for stream input/output
+
+| name           | alias | expect                   | with     | default           |
+| :--:           |  :-:  | :-----:                  | :-:      |  :--:   |
+| file           |   x   | `string`                 | self     |  none   |
+| files          |   x   | an `Array` of `string`   | self     |  none   |
+| readableStream | from  | `Readable`               | writableStream\[s\]|  none   |
+| writableStream |  to   | `Writable`               | readableStream\[s\]|  none   |
+| readableStreams| from  | an `Array` of `Readable` | writableStream     |  none   |
+| writableStreams|  to   | an `Array` of `Writable` | readableStream     |  none   |
+
+file:
+```ts
+interface UpdateFileOptions extends BasicOptions {
+  file: string;
+  readStart?: number;
+  writeStart?: number;
+}
+function streamEdit(options: UpdateFileOptions): Promise<void>;
+```
+
+files:
+```ts
+interface UpdateFilesOptions extends BasicOptions {
+  files: string[];
+  readStart?: number;
+  writeStart?: number;
+}
+
+function streamEdit(options: UpdateFilesOptions): Promise<void[]>;
+```
+
+transform Readable:
+```ts
+interface TransformReadableOptions<T> extends BasicOptions {
+  [ from | readableStream ]: Readable;
+  [ to   | writableStream ]: T;
+}
+
+function streamEdit<T extends Writable>(
+  options: TransformReadableOptions<T>
+): Promise<T>;
+```
+
+readables -> writable:
+```ts
+interface MultipleReadablesToWritableOptions<T> extends BasicOptions {
+  [ from | readableStreams ]: Array<Readable>;
+  [ to   | writableStream  ]: T;
+  contentJoin: string | Buffer;
+}
+
+function streamEdit<T extends Writable>(
+  options: MultipleReadablesToWritableOptions<T>
 ): Promise< T >;
 ```
 
-#### updateFiles - readable -> writables
-
+readable -> writables
 ```ts
 interface ReadableToMultipleWritablesOptions<T> extends BasicOptions {
-  from: Readable;
-  to: Array<T>;
+  [ from | readableStream  ]: Readable;
+  [ to   | writableStreams ]: Array<T>;
 }
 
-interface ReadableToMultipleWritablesOptionsAlias<T> extends BasicOptions {
-  readableStream: Readable;
-  writableStreams: Array<T>;
-}
-
-function updateFiles<T extends Writable>(
-  options: 
-    ReadableToMultipleWritablesOptions<T> | ReadableToMultipleWritablesOptionsAlias<T>
+function streamEdit<T extends Writable>(
+  options: ReadableToMultipleWritablesOptions<T>
 ): Promise< T[]>;
 ```
 

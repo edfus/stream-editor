@@ -70,4 +70,4 @@ async function rw_stream(filepath, options) {
             .then(() => void 0); // not leaking the reference to local writableStream
 }
 
-module.exports = { rw_stream, process_stream };
+module.exports = {  rw_stream, process_stream  };

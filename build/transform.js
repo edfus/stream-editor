@@ -155,4 +155,4 @@ class NukableTransform extends Transform {
   }
 }
 
-module.exports = { Transform, NukableTransform };
+module.exports = {  Transform, NukableTransform  };

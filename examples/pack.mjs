@@ -132,11 +132,17 @@ const replacements = {
       },
       isFullReplacement: true
     },
-    // named export
+    // named export with or without renaming
     {
-      search: /(export)\s*\{.+?\};?/,
-      replacement: "module.exports =",
-      isFullReplacement: false
+      search: /export\s*\{(.+?)\};?/,
+      replacement: (wholeMatch, namedExports) => {
+        namedExports = namedExports.replace(
+          /(?<=[\s,]+)(.+?)\s+as\s+(.+?)(?=[\s,]+)/g,
+          "$2: $1"
+        );
+        return `module.exports = { ${namedExports} };`;
+      },
+      isFullReplacement: true
     },
     // default export
     {

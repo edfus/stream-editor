@@ -150,9 +150,9 @@ interface BasicOptions extends ReplaceOptions {
    *
    * Node.js currently supportes following options:
    * "ascii" | "utf8" | "utf-8" | "utf16le" | "ucs2" | "ucs-2" | "base64" | "latin1" | "binary" | "hex"
-   * Default: "utf8".
+   * Default: null.
    */
-  encoding?: BufferEncoding;
+  encoding?: BufferEncoding | null;
   /**
    * Correspondence: encodings of WHATWG Encoding Standard TextDecoder.
    * 
@@ -379,4 +379,5 @@ export declare function streamEdit<T extends WritableOrVoid>(
     ReadableToMultipleWritablesOptions<T> | ReadableToMultipleWritablesOptionsAlias<T>
 ): Promise< T[] | T >;
 
-export const sed = streamEdit;
+type StreamEdit = typeof streamEdit;
+export const sed: StreamEdit;
