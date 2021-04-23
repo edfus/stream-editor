@@ -182,6 +182,77 @@ describe("Stream edit", () => {
         message: /^stream-editor: streamOptions\.\(readableStream\|destinations\) is invalid.\n/
       }
     );
+
+    await assert.rejects(
+      () => streamEdit({
+        files: [{}],
+      }),
+      {
+        name: "TypeError",
+        message: "stream-editor: streamOptions.files '[object Object]' is invalid."
+      }
+    );
+
+    await assert.rejects(
+      () => streamEdit({
+        from: {},
+        to: {}
+      }),
+      {
+        name: "TypeError",
+        message: /^stream-editor: streamOptions\.\(readableStream\|writableStream\) is invalid.\n/
+      }
+    );
+  });
+
+  it("should warn unknown/unneeded options", async () => {
+    return new Promise((resolve, reject) => {
+      process.env.FORCE_COLOR = "";
+      // hack
+      const warn = console.warn;
+      console.warn = warning => {
+        strictEqual(
+          warning,
+          `\x1B[33mstream-editor: Received unknown/unneeded options: readableStream.\x1B[0m`
+        );
+        console.warn = warn;
+        return resolve();
+      }
+      
+      streamEdit({
+        readableStream: new Readable(),
+        from: new Readable({
+          read() {
+            this.push(null);
+          }
+        }),
+        to: new Writable({
+          write(_1, _2, cb){
+            return cb();
+          }
+        })
+      }).then(reject, reject);
+
+      process.env.FORCE_COLOR = 0;
+    });
+  });
+
+  it("should respect FORCE_COLOR, NO_COLOR, NODE_DISABLE_COLORS", async () => {
+    const ansiSniffer = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/;
+    process.env.FORCE_COLOR = "";
+
+    await assert.rejects(
+      () => streamEdit({
+        from: {},
+        to: {}
+      }),
+      {
+        name: "TypeError",
+        message: ansiSniffer
+      }
+    );
+
+    process.env.FORCE_COLOR = 0;
   });
 
   it("should pipe one Readable to multiple dumps", async () => {
