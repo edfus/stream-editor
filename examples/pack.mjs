@@ -1,7 +1,7 @@
 import { exec, spawn } from "child_process";
 import { createReadStream, createWriteStream, copyFile, existsSync, mkdir } from "fs";
 import { join, extname, dirname } from "path";
-import { updateFileContent } from "../src/index.mjs";
+import { sed } from "../src/index.mjs";
 import { root_directory } from "./helpers/__dirname.mjs";
 
 /**
@@ -290,7 +290,7 @@ async function transport (filepath, sourcePath, destination, replace, isTest = f
     case mjs.from:
       // mjs to common js
       return Promise.all([
-        updateFileContent({
+        sed({
           readableStream: createReadStream(join(sourcePath, filepath)),
           writableStream: 
             createWriteStream (

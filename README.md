@@ -1,13 +1,11 @@
-# Update-File-Content
+# Stream-editor
 
-This project has been renamed to [stream-editor](https://www.npmjs.com/package/stream-editor). Install using `stream-editor` instead.
+Utility for executing RegEx replacement on streams as well as transcoding/teeing/confluencing them.
 
----
-
-[![npm](https://img.shields.io/npm/v/update-file-content?logo=npm)](https://www.npmjs.com/package/update-file-content)
-[![install size](https://packagephobia.com/badge?p=update-file-content)](https://packagephobia.com/result?p=update-file-content)
-[![codecov](https://codecov.io/gh/edfus/update-file-content/branch/master/graph/badge.svg)](https://codecov.io/gh/edfus/update-file-content)
-[![CI](https://github.com/edfus/update-file-content/actions/workflows/node.js.yml/badge.svg?branch=master)](https://github.com/edfus/update-file-content/actions/workflows/node.js.yml)
+[![npm](https://img.shields.io/npm/v/stream-editor?logo=npm)](https://www.npmjs.com/package/stream-editor)
+[![install size](https://packagephobia.com/badge?p=stream-editor)](https://packagephobia.com/result?p=stream-editor)
+[![codecov](https://codecov.io/gh/edfus/stream-editor/branch/master/graph/badge.svg)](https://codecov.io/gh/edfus/stream-editor)
+[![CI](https://github.com/edfus/stream-editor/actions/workflows/node.js.yml/badge.svg?branch=master)](https://github.com/edfus/stream-editor/actions/workflows/node.js.yml)
 [![Node.js Version](https://raw.githubusercontent.com/edfus/storage/master/node-lts-badge.svg)](https://nodejs.org/en/about/releases/)
 
 * [Features](#features)
@@ -208,17 +206,17 @@ updateFiles({
 });
 ```
 
-You can have a look at tests regarding error handling [here](https://github.com/edfus/update-file-content/blob/85665e5a9f53a724dab7a42a2d15301eaafddfc2/test/test.mjs#L578-L846).
+You can have a look at tests regarding error handling [here](https://github.com/edfus/stream-editor/blob/85665e5a9f53a724dab7a42a2d15301eaafddfc2/test/test.mjs#L578-L846).
 
 ### No dependency
 
-update-file-content previously depends on [rw-stream](https://github.com/signicode/rw-stream), but for some historical reasons, I refactored rw-stream and bundled it as a part of this package. See [src/rw-stream](https://github.com/edfus/update-file-content/blob/master/src/rw-stream/index.mjs).
+stream-editor previously depends on [rw-stream](https://github.com/signicode/rw-stream), but for some historical reasons, I refactored rw-stream and bundled it as a part of this package. See [src/rw-stream](https://github.com/edfus/stream-editor/blob/master/src/rw-stream/index.mjs).
 
-Currently, update-file-content has zero dependency.
+Currently, stream-editor has zero dependency.
 
 ### High coverage tests
 
-See <https://github.com/edfus/update-file-content/tree/master/test>.
+See <https://github.com/edfus/stream-editor/tree/master/test>.
 
 ```plain text
 
@@ -233,8 +231,8 @@ See <https://github.com/edfus/update-file-content/tree/master/test>.
     √ recognize $\d{1,3} $& $` $' and check validity (throw warnings)
 
   Update files
-    √ should check arguments
-    √ should pipe one Readable to multiple dumps (55ms)
+    √ should check arguments (41ms)
+    √ should pipe one Readable to multiple dumps (51ms)
     √ should replace CRLF with LF
     √ should have replaced /dum(b)/i to dumpling (while preserving dum's case)
     √ should have global and local limitations in replacement amount
@@ -264,7 +262,7 @@ See <https://github.com/edfus/update-file-content/tree/master/test>.
       √ can handle files larger than 16KiB
 
 
-  32 passing (362ms)
+  32 passing (745ms)
 
 ```
 
@@ -560,8 +558,8 @@ function updateFiles<T extends Writable>(
 ): Promise< T[]>;
 ```
 
-For further reading, take a look at [the declaration file](https://github.com/edfus/update-file-content/blob/master/src/index.d.ts).
+For further reading, take a look at [the declaration file](https://github.com/edfus/stream-editor/blob/master/src/index.d.ts).
 
 ## Examples
 
-See [./examples](https://github.com/edfus/update-file-content/tree/master/examples) and [esm2cjs](https://github.com/edfus/esm2cjs)
+See [./examples](https://github.com/edfus/stream-editor/tree/master/examples) and [esm2cjs](https://github.com/edfus/esm2cjs)

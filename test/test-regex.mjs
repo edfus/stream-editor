@@ -1,6 +1,6 @@
 import { strictEqual } from "node:assert";
 import { Duplex } from "stream";
-import { updateFileContent } from "../src/index.mjs";
+import { sed } from "../src/index.mjs";
 
 class Teleporter extends Duplex {
   _write(chunk, enc, cb) {
@@ -28,14 +28,18 @@ class Replacer {
 
   async _replace(str) {
     const teleporter = new Teleporter();
-
-    updateFileContent({
-      from: teleporter,
-      to: teleporter,
-      ...this.options
-    });
-
-    return teleporter.teleport(str).then(result => result.toString());
+    
+    return new Promise((resolve, reject) => {
+      sed({
+        from: teleporter,
+        to: teleporter,
+        ...this.options
+      }).catch(reject)
+  
+      return resolve(
+        teleporter.teleport(str).then(result => result.toString())
+      );
+    })
   }
 
   replace = str => this._replace(str);

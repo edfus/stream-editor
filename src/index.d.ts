@@ -163,7 +163,7 @@ interface BasicOptions extends ReplaceOptions {
    * passed as Buffer objects (that is, haven't done something like
    * readable.setEncoding('utf8'));
    * 
-   * Example: updateFileContent({
+   * Example: sed({
    *    from: createReadStream("gbk.txt"),
    *    to: createWriteStream("utf8.txt"),
    *    decodeBuffers: "gbk"
@@ -210,7 +210,7 @@ interface BasicOptions extends ReplaceOptions {
 
 type WritableOrVoid = Writable | void;
 
-// updateFileContent - file
+// sed - file
 interface UpdateFileOptions extends BasicOptions {
   /**
    * Path to the file.
@@ -236,7 +236,7 @@ interface UpdateFileOptions extends BasicOptions {
   writeStart?: number;
 }
 
-// updateFileContent - TransformReadable
+// sed - TransformReadable
 
 interface TransformReadableOptions<T> extends BasicOptions {
   /**
@@ -266,12 +266,12 @@ interface TransformReadableOptionsAlias<T> extends BasicOptions {
  * P.S. TS doesn't support overloading functions with same
  * number of parameters, so a huge union is there 😀
  */
-export declare function updateFileContent<T extends WritableOrVoid>(
+export declare function sed<T extends WritableOrVoid>(
   options: UpdateFileOptions | TransformReadableOptions<T> | TransformReadableOptionsAlias<T>
 ): Promise<T>;
 
 
-// updateFiles - files
+// sed - files
 
 interface UpdateFilesOptions extends BasicOptions {
   /**
@@ -302,7 +302,7 @@ interface UpdateFilesOptions extends BasicOptions {
   writeStart?: number;
 }
 
-// updateFiles - readables -> writable
+// sed - readables -> writable
 
 interface MultipleReadablesToWritableOptions<T> extends BasicOptions {
   /**
@@ -346,7 +346,7 @@ interface MultipleReadablesToWritableOptionsAlias<T> extends BasicOptions {
   contentJoin: string | Buffer;
 }
 
-// updateFiles - readable -> writables
+// sed - readable -> writables
 
 interface ReadableToMultipleWritablesOptions<T> extends BasicOptions {
   /**
@@ -380,7 +380,7 @@ interface ReadableToMultipleWritablesOptionsAlias<T> extends BasicOptions {
  * P.S. TS doesn't support overloading functions with same
  * number of parameters, so a huge union is there 😀
  */
-export declare function updateFiles<T extends WritableOrVoid>(
+export declare function sed<T extends WritableOrVoid>(
   options: 
 
     UpdateFilesOptions |

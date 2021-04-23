@@ -1,5 +1,4 @@
-import { updateFileContent, updateFiles } from "../src/index.mjs";
-
+import { sed } from "../src/index.mjs";
 import assert, { strictEqual } from "assert";
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -8,6 +7,8 @@ import { PassThrough, Readable, Writable } from "stream";
 import { createReadStream, createWriteStream, existsSync, promises as fsp } from "fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+process.env.NODE_DISABLE_COLORS = 1;
 
 describe("Update files", () => {
   const char_map = "dbdbdbThisIsADumbTestbbbsms".split("");
@@ -23,7 +24,7 @@ describe("Update files", () => {
 
   it("should check arguments", async () => {
     await assert.rejects(
-      () => updateFileContent({
+      () => sed({
         file: "",
         search: /(.|\n)*/,
         replacement: () => "",
@@ -31,33 +32,25 @@ describe("Update files", () => {
       }),
       {
         name: "TypeError",
-        message: "updateFileContent: options.file '' is invalid."
+        message: /^stream-editor: streamOptions.file '' is invalid./
       }
     );
 
     await assert.rejects(
-      () => updateFiles({
+      () => sed({
         from: [],
         to: {},
         search: /(.|\n)*/,
         replacement: () => ""
       }),
       {
-        name: "Error",
-        code: "EINVAL",
-        message:
-          'updateFiles: incorrect options.\n'
-          + 'Receiving: {\n'
-          + '  from: [],\n'
-          + '  to: {},\n'
-          + '  search: \u001b[31m/(.|\\n)*/\u001b[39m,\n'
-          + '  replacement: \u001b[36m[Function: replacement]\u001b[39m\n'
-          + '}'
+        name: "TypeError",
+        message: /^stream-editor: streamOptions\.\(sources\|writableStream\) is invalid.\n/
       }
     );
 
     await assert.rejects(
-      () => updateFileContent({
+      () => sed({
         file: "./",
         match: /(.|\n)*/,
         replacement: () => "",
@@ -67,7 +60,7 @@ describe("Update files", () => {
     );
 
     await assert.rejects(
-      () => updateFileContent({
+      () => sed({
         file: "./",
         replace: [
           {
@@ -84,12 +77,12 @@ describe("Update files", () => {
       }),
       {
         name: "TypeError",
-        message: "update-file-content: options.join '[object Object]' is invalid."
+        message: "stream-editor: replaceOptions.join '[object Object]' is invalid."
       }
     );
 
     await assert.rejects(
-      () => updateFileContent({
+      () => sed({
         file: "./",
         readStart: -1,
         writeStart: 9090,
@@ -103,7 +96,7 @@ describe("Update files", () => {
     );
 
     await assert.rejects(
-      () => updateFileContent({
+      () => sed({
         file: "./",
         readStart: -1,
         writeStart: -200,
@@ -117,7 +110,7 @@ describe("Update files", () => {
     );
 
     await assert.rejects(
-      () => updateFileContent({
+      () => sed({
         file: "./",
         replace: [
           {
@@ -127,12 +120,12 @@ describe("Update files", () => {
       }),
       {
         name: "TypeError",
-        message: "update-file-content: (search|match) 'dfabdf' is neither RegExp nor string OR replacement 'undefined' is neither Function nor string."
+        message: "stream-editor: in replaceOptions: (search|match) 'dfabdf' is neither RegExp nor string OR replacement 'undefined' is neither Function nor string."
       }
     );
 
     await assert.rejects(
-      () => updateFileContent({
+      () => sed({
         file: "./",
         replace: [
           {
@@ -142,51 +135,51 @@ describe("Update files", () => {
       }),
       {
         name: "TypeError",
-        message: "update-file-content: (search|match) 'dfabdf' is neither RegExp nor string OR replacement 'undefined' is neither Function nor string."
+        message: "stream-editor: in replaceOptions: (search|match) 'dfabdf' is neither RegExp nor string OR replacement 'undefined' is neither Function nor string."
       }
     );
 
     await assert.rejects(
-      () => updateFileContent({
+      () => sed({
         file: "./",
         postProcessing: ""
       }),
       {
         name: "TypeError",
-        message: `update-file-conent: non-function '' passed as options.postProcessing`
+        message: `stream-editor: non-function '' passed as replaceOptions.postProcessing`
       }
     );
 
     await assert.rejects(
-      () => updateFileContent({
+      () => sed({
         from: {},
         to: ""
       }),
       {
-        name: "TypeError",
-        message: `updateFileContent: options.(readableStream|writableStream|from|to) is invalid.`
+        name: "Error",
+        message: /^stream-editor: incorrect streamOptions.\n/
       }
     );
 
     await assert.rejects(
-      () => updateFiles({
+      () => sed({
         readableStreams: [new Readable(), "", Symbol("fdab")],
         to: new Writable()
       }),
       {
         name: "TypeError",
-        message: "updateFiles: options.(readableStreams|from) is not an instance of Array<Readable>"
+        message: /^stream-editor: streamOptions\.\(sources\|writableStream\) is invalid.\n/
       }
     );
 
     await assert.rejects(
-      () => updateFiles({
+      () => sed({
         readableStream: new Readable(),
         to: [new Readable()]
       }),
       {
         name: "TypeError",
-        message: "updateFiles: options.(writableStreams|to) is not an instance of Array<Writable>"
+        message: /^stream-editor: streamOptions\.\(readableStream\|destinations\) is invalid.\n/
       }
     );
   });
@@ -194,7 +187,7 @@ describe("Update files", () => {
   it("should pipe one Readable to multiple dumps", async () => {
     let counter = 0;
 
-    await updateFiles({
+    await sed({
       readableStream: new Readable({
         highWaterMark: 100,
         read(size) {
@@ -226,7 +219,7 @@ describe("Update files", () => {
   });
 
   it("should replace CRLF with LF", async () => {
-    await updateFiles({
+    await sed({
       files: dump$.map(id => join(__dirname, `./dump${id}`)),
       separator: /\r\n/,
       join: "\n"
@@ -242,7 +235,7 @@ describe("Update files", () => {
       /dum(b)/i.exec(await fsp.readFile(filepath, "utf-8"))
     );
 
-    return updateFileContent({
+    return sed({
       file: filepath,
       separator: /,(?=\n)/i,
       search: /(.+?)(dumpling)/i,
@@ -254,7 +247,7 @@ describe("Update files", () => {
   it("should have global and local limitations in replacement amount", async () => {
     const filepath = join(__dirname, `./dump${dump$[1]}`);
 
-    await updateFileContent({
+    await sed({
       file: filepath,
       search: /((.|\n){15})/,
       replacement: "^^^^^^^1^^^^^^^", // 15
@@ -262,7 +255,7 @@ describe("Update files", () => {
       join: void 0
     });
 
-    await updateFileContent({
+    await sed({
       file: filepath,
       replace: [{
         match: /(([^^]){13})/,
@@ -286,7 +279,7 @@ describe("Update files", () => {
 
   it("should have line buffer maxLength", async () => {
     await assert.rejects(
-      () => updateFileContent({
+      () => sed({
         from: new Readable({
           read(size) {
             for (let i = 0; i < size; i++) {
@@ -313,7 +306,7 @@ describe("Update files", () => {
     const folderpath = join(__dirname, "./netflix");
     const resultPath = join(folderpath, "dump-merge-result");
 
-    await updateFiles({
+    await sed({
       readableStreams:
         await fsp.readdir(folderpath, { withFileTypes: true })
           .then(dirents =>
@@ -360,7 +353,7 @@ describe("Update files", () => {
   it("has readableObjectMode", async () => {
     const filepath = join(__dirname, `./readable-object-mode.ndjson`);
 
-    await updateFileContent({
+    await sed({
       file: filepath,
       separator: /\r\n/,
       join: "\n"
@@ -368,7 +361,7 @@ describe("Update files", () => {
 
     const results = [];
 
-    await updateFileContent({
+    await sed({
       from: createReadStream(filepath),
       to: new Writable({
         objectMode: true,
@@ -398,7 +391,7 @@ describe("Update files", () => {
       const filepath = join(__dirname, `./dump${dump$[1]}`);
 
       // search string with limit
-      await updateFileContent({
+      await sed({
         file: filepath,
         replace: [{
           search: "%%",
@@ -431,7 +424,7 @@ describe("Update files", () => {
         90
       );
 
-      await updateFileContent({
+      await sed({
         file: filepath,
         separator: /,/,
         search: /(.|\n)+/,
@@ -461,7 +454,7 @@ describe("Update files", () => {
       const filepath = join(__dirname, `./dump${dump_[0]}`);
 
       let counter = 0;
-      await updateFileContent({
+      await sed({
         from: new Readable({
           highWaterMark: 20,
           read(size) {
@@ -517,7 +510,7 @@ describe("Update files", () => {
 
     it("gbk to utf8 buffer", async () => {
       const filepath = join(__dirname, "./dump-utf8.txt");
-      await updateFileContent({
+      await sed({
         from: createReadStream(fileSourcePath),
         to: createWriteStream(filepath),
         decodeBuffers: "gbk"
@@ -532,7 +525,7 @@ describe("Update files", () => {
       const fileHandler = await fsp.open(fileSourcePath, "r");
       const resultPath = join(__dirname, "./dump-hex.txt");
 
-      await updateFileContent({
+      await sed({
         from: new Readable({
           highWaterMark: 3,
           async read(size) {
@@ -581,7 +574,7 @@ describe("Update files", () => {
       const writableStream =
         createWriteStream(join(__dirname, `./dump${dump_[1]}`))
         // .once("error", () => logs.push("Event: writableStream errored"))
-        // see https://github.com/edfus/update-file-content/runs/1641959273
+        // see https://github.com/edfus/stream-editor/runs/1641959273
         ;
 
       const logs = [];
@@ -596,7 +589,7 @@ describe("Update files", () => {
 
       let counter = 0;
       try {
-        await updateFileContent({
+        await sed({
           from: new Readable({
             highWaterMark: 5,
             read(size) {
@@ -650,7 +643,7 @@ describe("Update files", () => {
       });
   
       try {
-        await updateFileContent({
+        await sed({
           from: new Readable({
             highWaterMark: 5,
             read(size) {
@@ -681,9 +674,9 @@ describe("Update files", () => {
       }
     });
 
-    it("updateFiles: can correctly propagate errors emitted by readableStreams", async () => {
+    it("sed: can correctly propagate errors emitted by readableStreams", async () => {
       await assert.rejects(
-        () => updateFiles({
+        () => sed({
           readableStreams: new Array(10).fill(
             new Readable({
               highWaterMark: 6,
@@ -707,9 +700,9 @@ describe("Update files", () => {
       );
     });
 
-    it("updateFiles: can handle prematurely destroyed readableStreams", async () => {
+    it("sed: can handle prematurely destroyed readableStreams", async () => {
       await assert.rejects(
-        () => updateFiles({
+        () => sed({
           readableStreams: new Array(10).fill(
             new Readable({
               highWaterMark: 6,
@@ -738,9 +731,9 @@ describe("Update files", () => {
       );
     });
 
-    it("updateFiles: can correctly propagate errors emitted by writableStream", async () => {
+    it("sed: can correctly propagate errors emitted by writableStream", async () => {
       await assert.rejects(
-        () => updateFiles({
+        () => sed({
           readableStreams: new Array(10).fill(
             new Readable({
               highWaterMark: 6,
@@ -763,9 +756,9 @@ describe("Update files", () => {
       );
     });
 
-    it("updateFiles: can correctly propagate errors emitted by writableStreams", async () => {
+    it("sed: can correctly propagate errors emitted by writableStreams", async () => {
       await assert.rejects(
-        () => updateFiles({
+        () => sed({
           readableStream: new Readable({
             highWaterMark: 6,
             read(size) {
@@ -789,9 +782,9 @@ describe("Update files", () => {
       );
     });
 
-    it("updateFiles: can handle prematurely destroyed writableStreams", async () => {
+    it("sed: can handle prematurely destroyed writableStreams", async () => {
       await assert.rejects(
-        () => updateFiles({
+        () => sed({
           readableStream: new Readable({
             highWaterMark: 6,
             read(size) {
@@ -816,9 +809,9 @@ describe("Update files", () => {
       );
     });
 
-    it("updateFiles: can handle prematurely ended writableStreams", async () => {
+    it("sed: can handle prematurely ended writableStreams", async () => {
       await assert.rejects(
-        () => updateFiles({
+        () => sed({
           readableStream: new Readable({
             highWaterMark: 6,
             read(size) {
@@ -847,7 +840,7 @@ describe("Update files", () => {
   describe("corner cases", () => {
     it("can handle empty content", async () => {
       const filepath = join(__dirname, `./dump${dump$[3]}`);
-      await updateFileContent({
+      await sed({
         file: filepath,
         separator: /,/,
         search: /(.|\n)+/,
@@ -864,7 +857,7 @@ describe("Update files", () => {
     });
 
     it("can handle non-string in regular expression split result", async () => {
-      await updateFileContent({
+      await sed({
         readableStream: new Readable({
           highWaterMark: 5,
           read(size) {
@@ -921,7 +914,7 @@ describe("Update files", () => {
               )
             );
 
-          await updateFileContent(options);
+          await sed(options);
 
           await fsp.readFile(file, "utf-8")
             .then(async result => {
