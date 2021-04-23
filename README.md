@@ -1,6 +1,8 @@
 # Update-File-Content
 
-Utility for executing RegEx replacement on files, powered by stream.
+This project has been renamed to [stream-editor](https://www.npmjs.com/package/stream-editor). Install using `stream-editor` instead.
+
+---
 
 [![npm](https://img.shields.io/npm/v/update-file-content?logo=npm)](https://www.npmjs.com/package/update-file-content)
 [![install size](https://packagephobia.com/badge?p=update-file-content)](https://packagephobia.com/result?p=update-file-content)
