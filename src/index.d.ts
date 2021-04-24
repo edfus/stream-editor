@@ -380,4 +380,7 @@ export declare function streamEdit<T extends WritableOrVoid>(
 ): Promise< T[] | T >;
 
 type StreamEdit = typeof streamEdit;
+/**
+ * Alias for streamEdit
+ */
 export const sed: StreamEdit;

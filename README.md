@@ -1,7 +1,5 @@
 # Stream-Editor
 
-Execute RegEx replacement on streams as well as transcode/tee/confluence them.
-
 [![npm](https://img.shields.io/npm/v/stream-editor?logo=npm)](https://www.npmjs.com/package/stream-editor)
 [![install size](https://packagephobia.com/badge?p=stream-editor)](https://packagephobia.com/result?p=stream-editor)
 [![codecov](https://codecov.io/gh/edfus/stream-editor/branch/master/graph/badge.svg)](https://codecov.io/gh/edfus/stream-editor)
@@ -238,7 +236,7 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
     √ should check arguments
     √ should warn unknown/unneeded options
     √ should respect FORCE_COLOR, NO_COLOR, NODE_DISABLE_COLORS
-    √ should pipe one Readable to multiple dumps (60ms)
+    √ should pipe one Readable to multiple dumps (51ms)
     √ should replace CRLF with LF
     √ should have replaced /dum(b)/i to dumpling (while preserving dum's case)
     √ should have global and local limitations in replacement amount
@@ -268,7 +266,7 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
       √ can handle files larger than 16KiB
 
 
-  34 passing (321ms)
+  34 passing (256ms)
 
 ```
 
