@@ -175,7 +175,7 @@ function _getReplaceFunc(options) {
       if (typeof search === "string") {
         /**
          * user who specifying a string search
-         * is definitely expecting a isFullReplacement
+         * is definitely expecting a full replacement
          */
         isFullReplacement = true;
 
@@ -192,12 +192,12 @@ function _getReplaceFunc(options) {
       }
 
       /**
-       * Set the global flag to ensure the search pattern is "stateful",
+       * Set the global/sticky flag to ensure the search pattern is "stateful",
        * while preserving flags the original search pattern.
        */
       let flags = search.flags;
 
-      if (!flags.includes("g"))
+      if (!flags.includes("g") && !flags.includes("y"))
         flags = "g".concat(flags);
 
       if (!isFullReplacement && !splitToPCGroupsPattern.test(search.source))

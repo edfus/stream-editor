@@ -46,6 +46,20 @@ class Replacer {
 }
 
 describe("Normalize & Replace", () => {
+  it("can handle sticky regular expression", async () => {
+    const stickyMatch = /s+/iy;
+
+    const { replace } = new Replacer({
+      match: stickyMatch,
+      replacement: ""
+    });
+
+    strictEqual(
+      await replace("sSs_s_sS_Ss"),
+      "_s_sS_Ss"
+    );
+  });
+
   it("can handle string match with special characters", async () => {
     const str = `Abfdb\///\\*55&*^&24#$|{[{]\`~~\`.gh</?'>}2';"\dfb`;
 
