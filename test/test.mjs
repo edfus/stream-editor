@@ -73,7 +73,11 @@ describe("Edit streams", () => {
           },
         ],
         join: {},
-        limit: 88
+        limit: 88,
+        defaultOptions: {
+          disablePlaceholders: true,
+          isFullReplacement: true
+        }
       }),
       {
         name: "TypeError",
@@ -201,6 +205,16 @@ describe("Edit streams", () => {
       {
         name: "TypeError",
         message: /^stream-editor: streamOptions\.\(readableStream\|writableStream\) is invalid.\n/
+      }
+    );
+
+    await assert.rejects(
+      () => streamEdit({
+        defaultOptions: "a"
+      }),
+      {
+        name: "TypeError",
+        message: `stream-editor: in replaceOptions: defaultOptions 'a' should be an object.`
       }
     );
   });

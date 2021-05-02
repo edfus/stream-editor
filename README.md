@@ -223,6 +223,7 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
 ```plain text
 
   Normalize & Replace
+    √ can handle sticky regular expressions
     √ can handle string match with special characters
     √ can handle partial replacement with placeholders
     √ can handle non-capture-group parenthesized pattern: Assertions
@@ -236,7 +237,7 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
     √ should check arguments
     √ should warn unknown/unneeded options
     √ should respect FORCE_COLOR, NO_COLOR, NODE_DISABLE_COLORS
-    √ should pipe one Readable to multiple dumps (51ms)
+    √ should pipe one Readable to multiple dumps (52ms)
     √ should replace CRLF with LF
     √ should have replaced /dum(b)/i to dumpling (while preserving dum's case)
     √ should have global and local limitations in replacement amount
@@ -266,7 +267,7 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
       √ can handle files larger than 16KiB
 
 
-  34 passing (256ms)
+  35 passing (301ms)
 
 ```
 
@@ -286,11 +287,12 @@ An object input with one or more following options is acceptable to `streamEdit`
 | :--:          |  :-:  | :-----:                 | :-:      |  :--:      |
 | search        | match | `string` \| `RegExp`    | ✔       |  none      |
 | replacement   |   x   | `string` \|  `(wholeMatch, ...args) => string`  | ✔  | none |
-| limit         |   x   | `number`                | ✔       |  `Infinity`  |
-| maxTimes      |   x   | `number`                | ✔       |  `Infinity`  |
-| isFullReplacement | x | `boolean`               | ✔       |  `false`     |
-| disablePlaceholders |x| `boolean`               | ✔       |  `false`     |
+| limit         |   x   | `number`                | ✔       |  `Infinity` |
+| maxTimes      |   x   | `number`                | ✔       |  `Infinity` |
+| isFullReplacement | x | `boolean`               | ✔       |  `false`    |
+| disablePlaceholders |x| `boolean`               | ✔       |  `false`    |
 | replace       |   x   | an `Array` of { `search`, `replacement` }        | ✔ | none |
+| defaultOptions|   x   | `BasicReplaceOptions`   | ✔       |    `{}`     |
 | join          |   x   | `string` \| `(part: string) => string` \| `null` | ✔ | `part => part`  |
 | postProcessing|   x   | `(part: string, isLastPart: boolean) => any`     | ✔ | none  |
 
@@ -298,52 +300,7 @@ An object input with one or more following options is acceptable to `streamEdit`
 type GlobalLimit = number;
 type LocalLimit = number;
 
-interface SearchAndReplaceOption {
-  /**
-   * Correspondence: `String.prototype.replaceAll`'s 1st argument.
-   * 
-   * Accepts a literal string or a RegExp object.
-   * 
-   * Will replace all occurrences by converting input into a global RegExp
-   * object, which means that the according replacement might be invoked 
-   * multiple times for each full match to be replaced.
-   * 
-   * Every `search` and `replacement` not arranged in pairs is silently
-   * discarded in `options`, while in `options.replace` that will result in
-   * an error thrown.
-   */
-  search?: string | RegExp;
-  /**
-   * Correspondence: String.prototype.replace's 2nd argument.
-   * 
-   * Replaces the according text for a given match, a string or
-   * a function that returns the replacement text can be passed.
-   * 
-   * Special replacement patterns (parenthesized capture group placeholders)
-   * are well supported.
-   * 
-   * For a partial replacement, $& (also the 1st supplied value to replace
-   * function) and $1 (the 2nd param passed) always have the same value,
-   * supplying the matched substring in the parenthesized capture group
-   * you specified.
-   */
-  replacement?: string | ((wholeMatch: string, ...args: string[]) => string);
-  /**
-   * Apply restriction on certain search's maximum executed times.
-   * 
-   * Upon reaching the limit, if option `truncate` is falsy (false by default),
-   * underlying transform stream will become a transparent passThrough stream.
-   * 
-   * Default: Infinity. 0 is considered as Infinity for this option.
-   */
-  limit?: LocalLimit;
-  /**
-   * Observe a certain search's executed times, remove that search right
-   * after upper limit reached.
-   * 
-   * Default: Infinity. 0 is considered as Infinity for this option.
-   */
-  maxTimes?: number;
+interface BasicReplaceOptions {
   /**
    * Perform a full replacement or not.
    * 
@@ -360,9 +317,58 @@ interface SearchAndReplaceOption {
    * Default: false
    */
   disablePlaceholders?: Boolean;
+  /**
+   * Apply restriction on certain search's maximum executed times.
+   * 
+   * Upon reaching the limit, if option `truncate` is falsy (false by default),
+   * underlying transform stream will become a transparent passThrough stream.
+   * 
+   * Default: Infinity. 0 is considered as Infinity for this option.
+   */
+  limit?: LocalLimit;
+  /**
+   * Observe a certain search's executed times, remove that search right
+   * after upper limit reached.
+   * 
+   * Default: Infinity. 0 is considered as Infinity for this option.
+   */
+  maxTimes?: number;
 }
 
-interface MultipleReplacementOption {
+interface SearchAndReplaceOptions extends BasicReplaceOptions {
+    /**
+   * Correspondence: `String.prototype.replaceAll`'s 1st argument.
+   * 
+   * Accepts a literal string or a RegExp object.
+   * 
+   * Will replace all occurrences by converting input into a global RegExp
+   * object, which means that the according replacement might be invoked 
+   * multiple times for each full match to be replaced.
+   * 
+   * Every `search` and `replacement` not arranged in pairs is silently
+   * discarded in `options`, while in `options.replace` that will result in
+   * an error thrown.
+   */
+  search?: string | RegExp;
+
+  /**
+   * Correspondence: String.prototype.replace's 2nd argument.
+   * 
+   * Replaces the according text for a given match, a string or
+   * a function that returns the replacement text can be passed.
+   * 
+   * Special replacement patterns (parenthesized capture group placeholders)
+   * are well supported.
+   * 
+   * For a partial replacement, $& (also the 1st supplied value to replace
+   * function) and $1 (the 2nd param passed) always have the same value,
+   * supplying the matched substring in the parenthesized capture group
+   * you specified.
+   */
+  replacement?: string | ((wholeMatch: string, ...args: string[]) => string);
+}
+
+interface MultipleReplacementOptions {
   /**
    * Apply restriction on the maximum count of every search's executed times.
    * 
@@ -378,10 +384,14 @@ interface MultipleReplacementOption {
    * Possible `search|match` and `replacement` pair in `options` scope will be
    * prepended to `options.replace` array, if both exist.
    */
-  replace?: Array<SearchAndReplaceOption | MatchAndReplaceOption>;
+  replace?: Array<SearchAndReplaceOptions | MatchAndReplaceOptions>;
+  /**
+   * Default: {}
+   */
+  defaultOptions?: BasicReplaceOptions;
 }
 
-type ReplaceOptions = MultipleReplacementOption `OR` SearchAndReplaceOption;
+type ReplaceOptions = MultipleReplacementOptions `OR` SearchAndReplaceOptions;
 
 interface BasicOptions extends ReplaceOptions {
   /**

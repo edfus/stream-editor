@@ -5,22 +5,7 @@ import { Writable, Readable } from "stream";
 type GlobalLimit = number;
 type LocalLimit = number;
 
-interface BasicReplaceOption {
-  /**
-   * Correspondence: String.prototype.replace's 2nd argument.
-   * 
-   * Replaces the according text for a given match, a string or
-   * a function that returns the replacement text can be passed.
-   * 
-   * Special replacement patterns (parenthesized capture group placeholders)
-   * are well supported.
-   * 
-   * For a partial replacement, $& (also the 1st supplied value to replace
-   * function) and $1 (the 2nd param passed) always have the same value,
-   * supplying the matched substring in the parenthesized capture group
-   * you specified.
-   */
-  replacement?: string | ((wholeMatch: string, ...args: string[]) => string);
+interface BasicInfrequentReplaceOption {
   /**
    * Perform a full replacement or not.
    * 
@@ -53,6 +38,25 @@ interface BasicReplaceOption {
    * Default: Infinity. 0 is considered as Infinity for this option.
    */
   maxTimes?: number;
+}
+
+interface BasicReplaceOption extends BasicInfrequentReplaceOption {
+  /**
+   * Correspondence: String.prototype.replace's 2nd argument.
+   * 
+   * Replaces the according text for a given match, a string or
+   * a function that returns the replacement text can be passed.
+   * 
+   * Special replacement patterns (parenthesized capture group placeholders)
+   * are well supported.
+   * 
+   * For a partial replacement, $& (also the 1st supplied value to replace
+   * function) and $1 (the 2nd param passed) always have the same value,
+   * supplying the matched substring in the parenthesized capture group
+   * you specified.
+   */
+  replacement?: string | ((wholeMatch: string, ...args: string[]) => string);
+
 }
 
 interface SearchAndReplaceOption extends BasicReplaceOption {
@@ -108,6 +112,10 @@ interface MultipleReplacementOption {
    * prepended to `options.replace` array, if both exist.
    */
   replace?: Array<SearchAndReplaceOption | MatchAndReplaceOption>;
+  /**
+   * Default: {}
+   */
+  defaultOptions?: BasicInfrequentReplaceOption;
 }
 
 // An interface can only extend an object type or intersection of object types with statically known members.
@@ -275,17 +283,17 @@ interface UpdateFilesOptions extends BasicOptions {
    * Default: 0
    */
   readStart?: number;
-   /**
-    * Correspondence: fs.write's 4th argument - position
-    * 
-    * The offset from the beginning of the file where the substituted data should be written.
-    * 
-    * Applies to all files.
-    * 
-    * writeStart should be smaller or equal to readStart.
-    * 
-    * Default: 0
-    */
+  /**
+   * Correspondence: fs.write's 4th argument - position
+   * 
+   * The offset from the beginning of the file where the substituted data should be written.
+   * 
+   * Applies to all files.
+   * 
+   * writeStart should be smaller or equal to readStart.
+   * 
+   * Default: 0
+   */
   writeStart?: number;
 }
 
@@ -368,16 +376,19 @@ interface ReadableToMultipleWritablesOptionsAlias<T> extends BasicOptions {
  * number of parameters, so a huge union is there 😀
  */
 export declare function streamEdit<T extends WritableOrVoid>(
-  options: 
+  options:
 
     UpdateFileOptions | TransformReadableOptions<T> | TransformReadableOptionsAlias<T> |
 
     UpdateFilesOptions |
-    
+
     MultipleReadablesToWritableOptionsAlias<T> | MultipleReadablesToWritableOptions<T> |
-    
+
     ReadableToMultipleWritablesOptions<T> | ReadableToMultipleWritablesOptionsAlias<T>
-): Promise< T[] | T >;
+): Promise<T[] | T>;
 
 type StreamEdit = typeof streamEdit;
+/**
+ * Alias for streamEdit
+ */
 export const sed: StreamEdit;

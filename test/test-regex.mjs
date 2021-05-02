@@ -1,6 +1,6 @@
 import { strictEqual } from "node:assert";
 import { Duplex } from "stream";
-import { sed } from "../src/index.mjs";
+import { streamEdit } from "../src/index.mjs";
 
 class Teleporter extends Duplex {
   _write(chunk, enc, cb) {
@@ -30,7 +30,7 @@ class Replacer {
     const teleporter = new Teleporter();
     
     return new Promise((resolve, reject) => {
-      sed({
+      streamEdit({
         from: teleporter,
         to: teleporter,
         ...this.options
@@ -46,7 +46,7 @@ class Replacer {
 }
 
 describe("Normalize & Replace", () => {
-  it("can handle sticky regular expression", async () => {
+  it("can handle sticky regular expressions", async () => {
     const stickyMatch = /s+/iy;
 
     const { replace } = new Replacer({

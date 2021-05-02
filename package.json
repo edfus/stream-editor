@@ -1,6 +1,6 @@
 {
   "name": "stream-editor",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "Utility for executing RegEx replacement on streams as well as transcoding/teeing/confluencing them.",
   "scripts": {
     "example": "node examples/update-sw-content.mjs",

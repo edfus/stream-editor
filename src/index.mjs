@@ -75,7 +75,7 @@ function substituteCaptureGroupPlaceholders(target, $and, ...rest) {
   ).replace(/\$\$/g, "$");
 }
 
-function _getReplaceFunc(options) {
+function getReplaceFunc(options) {
   //TODO line
   let replace = [];
 
@@ -158,8 +158,23 @@ function _getReplaceFunc(options) {
     return postProcessing(part, EOF);
   };
 
+  const defaultOptions = options.defaultOptions;
+
+  if (!validate(defaultOptions, Object)) {
+    throw new TypeError([
+      "stream-editor: in replaceOptions:",
+      `defaultOptions '${defaultOptions}' should be an object.`
+    ].join(" "));
+  }
+
   replaceSet = new Set(
-    replace.map(({ match, search, replacement, isFullReplacement, limit, maxTimes, disablePlaceholders }) => {
+    replace.map(replaceActions => {
+      let { match, search, replacement } = replaceActions;
+      let { isFullReplacement, limit, maxTimes, disablePlaceholders } = findWithDefault(
+        replaceActions, defaultOptions,
+        "isFullReplacement", "limit", "maxTimes", "disablePlaceholders"
+      );
+
       if (match && !search)
         search = match;
 
@@ -412,6 +427,8 @@ function normalizeOptions(options) {
     isFullReplacement: getOption("isFullReplacement"),
     disablePlaceholders: getOption("disablePlaceholders"),
 
+    defaultOptions: getOption("defaultOptions") || {},
+
     replace: getOption("replace"),
 
     join: getOption("join"),
@@ -428,7 +445,7 @@ function normalizeOptions(options) {
     writeStart: getOption("writeStart") || 0,
     readableObjectMode: Boolean(getOption("readableObjectMode")),
 
-    processFunc: _getReplaceFunc(replaceOptions),
+    processFunc: getReplaceFunc(replaceOptions),
 
     contentJoin: getOption("contentJoin") || ""
   };
@@ -564,7 +581,7 @@ async function streamEdit (options) {
       ];
 
       for (let i = 1; i < files.length; i++) {
-        transformOptions.processFunc = _getReplaceFunc(replaceOptions);
+        transformOptions.processFunc = getReplaceFunc(replaceOptions);
         promises.push(
           rw_stream(
             files[i],
@@ -606,7 +623,7 @@ async function streamEdit (options) {
           );
 
           if(i < lastIndex)
-            transformOptions.processFunc = _getReplaceFunc(replaceOptions);
+            transformOptions.processFunc = getReplaceFunc(replaceOptions);
 
           resultStreams.push(passThrough);
           return promise;
@@ -779,6 +796,18 @@ function validate(...args) {
     case "number": return args.every(arg => typeof arg === "number" && !isNaN(arg) && arg >= should_be); // comparing NaN with other numbers always returns false, though.
     default: return args.every(arg => typeof arg === type);
   }
+}
+
+function findWithDefault(options, defaultOptions, ...names) {
+  const result = {};
+  for (const name of names) {
+    if(options[name] !== undefined) {
+      result[name] = options[name];
+    } else {
+      result[name] = defaultOptions[name];
+    }
+  }
+  return result;
 }
 
 export { streamEdit, streamEdit as sed };
