@@ -237,7 +237,7 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
     √ should check arguments
     √ should warn unknown/unneeded options
     √ should respect FORCE_COLOR, NO_COLOR, NODE_DISABLE_COLORS
-    √ should pipe one Readable to multiple dumps (52ms)
+    √ should pipe one Readable to multiple dumps (55ms)
     √ should replace CRLF with LF
     √ should have replaced /dum(b)/i to dumpling (while preserving dum's case)
     √ should have global and local limitations in replacement amount
@@ -267,7 +267,7 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
       √ can handle files larger than 16KiB
 
 
-  35 passing (301ms)
+  35 passing (284ms)
 
 ```
 
