@@ -329,7 +329,7 @@ describe("Edit streams", () => {
     });
   });
 
-  it("should have global and local limitations in replacement amount", async () => {
+  it("should have global and local limits on replacement amount", async () => {
     const filepath = join(__dirname, `./dump${dump$[1]}`);
 
     await streamEdit({

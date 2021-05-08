@@ -58,9 +58,9 @@ You can specify a truthy `isFullReplacement` to perform a full replacment instea
 
 This package will create readable and writable streams connected to a single file at the same time, while disallowing any write operations to advance further than the current reading index. This feature is based on [rw-stream](https://github.com/signicode/rw-stream)'s great work.
 
-To accommodate RegEx replacement (which requires intact strings rather than chunks that may begin or end at any position) with streams, this package brings `separator` (default: `/(?<=\r?\n)/`) and `join` (default: `''`) options into use. You should NOT specify separators that may divide text structures targeted by your RegEx searches, which would result in undefined behavior.
+To accommodate RegEx replacement (which requires intact strings rather than chunks that may begin or end at any position) with streams, we brings `separator` (default: `/(?<=\r?\n)/`) and `join` (default: `''`) options into use. You should NOT specify separators that may divide text structures targeted by your RegEx searches, which would result in undefined behavior.
 
-Moreover, as the RegEx replacement part in `options` is actually optional, this package can be used to break up streams and reassemble them like [split2](https://github.com/mcollina/split2) does:
+Moreover, as the RegEx replacement part in `options` is actually optional, stream-editor can also be used to break up streams and reassemble them like [split2](https://github.com/mcollina/split2) does:
 
 ```js
 // named export sed is an alias for streamEdit
@@ -135,7 +135,7 @@ updateFiles({
 });
 ```
 
-Once the limit specified by option `limit` is reached, if option `truncate` is falsy (false by default), underlying transform stream will become a transparent passThrough stream, otherwise the remaining part will be discarded, while `maxTimes` just performs a removal on that search.
+Once the limit specified by option `limit` is reached, underlying transform stream will become a transparent passThrough stream if option `truncate` is falsy, otherwise the remaining part will be discarded. In contrast, `maxTimes` just performs a removal on that search.
 
 ### Transcoding streams or files
 

@@ -204,7 +204,7 @@ describe("Normalize & Replace", () => {
     );
   });
 
-  it("can handle partial replacement but without capture groups", async () => {
+  it("can handle malformed (without capture groups) partial replacement", async () => {
     const { replace } = new Replacer({
       match: /ge \w+$/,
       replacement: "g dino",
