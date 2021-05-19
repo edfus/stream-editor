@@ -20,13 +20,7 @@ class Transform extends Node_Transform {
     });
 
     this.separator = separator;
-    this.process = function processWrapper() {
-      try {
-        return processFunc.apply(void 0, arguments);
-      } catch (err) {
-        this.emit("error", err);
-      }
-    }
+    this.process = processFunc;
 
     this.decoder = new TextDecoder(decodeBuffers);
 
@@ -61,8 +55,14 @@ class Transform extends Node_Transform {
     // length > 1
     parts[0] = this[kSource];
 
-    for (let i = 0; i < parts.length - 1; i++) {
-      if(this.push(this.process(parts[i], false)) === false) {
+    for (let i = 0, ret; i < parts.length - 1; i++) {
+      try {
+        ret = this.process(parts[i], false);
+      } catch (err) {
+        return cb(err);
+      }
+
+      if(this.push(ret) === false) {
         if (this.destroyed || this[kNuked]) {
           this[kSource] = '';
           return cb();
@@ -75,9 +75,14 @@ class Transform extends Node_Transform {
   }
 
   _flush (cb) {
-    this.push(
-      this.process(this[kSource].concat(this.decoder.decode()), true)
-    );
+    try {
+      this.push(
+        this.process(this[kSource].concat(this.decoder.decode()), true)
+      );
+    } catch (err) {
+      return cb(err);
+    }
+    
     return cb();
   }
 }
