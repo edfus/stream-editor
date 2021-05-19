@@ -20,7 +20,13 @@ class Transform extends Node_Transform {
     });
 
     this.separator = separator;
-    this.process = processFunc;
+    this.process = function processWrapper() {
+      try {
+        return processFunc.apply(void 0, arguments);
+      } catch (err) {
+        this.emit("error", err);
+      }
+    }
 
     this.decoder = new TextDecoder(decodeBuffers);
 

@@ -231,8 +231,8 @@ describe("Edit streams", () => {
         );
         console.warn = warn;
         return resolve();
-      }
-      
+      };
+
       streamEdit({
         readableStream: new Readable(),
         from: new Readable({
@@ -241,7 +241,7 @@ describe("Edit streams", () => {
           }
         }),
         to: new Writable({
-          write(_1, _2, cb){
+          write(_1, _2, cb) {
             return cb();
           }
         })
@@ -451,7 +451,7 @@ describe("Edit streams", () => {
       to: new Writable({
         objectMode: true,
         write(chunk, enc, cb) {
-          if(typeof chunk === "object")
+          if (typeof chunk === "object")
             results.push(JSON.stringify(chunk));
           return cb();
         }
@@ -459,7 +459,7 @@ describe("Edit streams", () => {
       separator: "\n",
       readableObjectMode: true,
       postProcessing(part) {
-        if(part.length)
+        if (part.length)
           return JSON.parse(part);
         return part;
       }
@@ -716,17 +716,17 @@ describe("Edit streams", () => {
 
     it("destroys streams properly if errors occurred during initialization", async () => {
       const writableStream = createWriteStream(join(__dirname, `./dump${dump_[1]}`));
-  
+
       const logs = [];
-  
+
       writableStream.destroy = new Proxy(writableStream.destroy, {
         apply(target, thisArg, argumentsList) {
           logs.push("Proxy: writableStream.destroy.apply");
-  
+
           return target.apply(thisArg, argumentsList);
         }
       });
-  
+
       try {
         await streamEdit({
           from: new Readable({
@@ -917,6 +917,97 @@ describe("Edit streams", () => {
         {
           name: "Error",
           message: "Premature close"
+        }
+      );
+    });
+
+    it("can handle errors thrown from postProcessing", async () => {
+      await assert.rejects(
+        () => streamEdit({
+          readableStream: new Readable({
+            highWaterMark: 6,
+            read(size) {
+              this.push("Afbdfbdbbdfb".repeat(6));
+              this.push(null);
+            }
+          }),
+          writableStream: new Writable({
+            write(chunk, enc, cb) {
+              return cb();
+            }
+          }),
+          postProcessing (part, isLastPart) {
+            if(isLastPart)
+              throw new Error("err");
+            return part;
+          }
+        }),
+        {
+          name: "Error",
+          message: "err"
+        }
+      );
+    });
+
+    it("can handle errors thrown from join functions", async () => {
+      let i = 0;
+      await assert.rejects(
+        () => streamEdit({
+          readableStream: new Readable({
+            highWaterMark: 6,
+            read(size) {
+              if(i++ <= 3) {
+                this.push("Afbdfbdbbdfb".repeat(6));
+              } else {
+                this.push(null);
+              }
+            }
+          }),
+          writableStream: new Writable({
+            write(chunk, enc, cb) {
+              return cb();
+            }
+          }),
+          separator: "fbd",
+          join (part) {
+            throw new Error("err");
+          }
+        }),
+        {
+          name: "Error",
+          message: "err"
+        }
+      );
+    });
+
+    it("can handle errors thrown from replacement functions", async () => {
+      let i = 0;
+      await assert.rejects(
+        () => streamEdit({
+          readableStream: new Readable({
+            highWaterMark: 6,
+            read(size) {
+              if(i++ <= 3) {
+                this.push("Afbdfbdbbdfb".repeat(6));
+              } else {
+                this.push(null);
+              }
+            }
+          }),
+          writableStream: new Writable({
+            write(chunk, enc, cb) {
+              return cb();
+            }
+          }),
+          separator: "fbd",
+          search: "bd",
+          replacement () {
+            throw new Error("err");
+          }
+        }),
+        {
+          name: "Error",
+          message: "err"
         }
       );
     });
