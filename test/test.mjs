@@ -889,7 +889,7 @@ describe("Edit streams", () => {
         }),
         {
           name: "Error",
-          message: "Premature close"
+          message: "stream-editor: a stream destination has been destroyed brutely."
         }
       );
     });
@@ -916,7 +916,7 @@ describe("Edit streams", () => {
         }),
         {
           name: "Error",
-          message: "Premature close"
+          message: "stream-editor: a stream destination has been ended prematurely."
         }
       );
     });

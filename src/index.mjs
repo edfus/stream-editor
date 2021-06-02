@@ -651,14 +651,10 @@ async function streamEdit (options) {
     const destinations = streamOptions.destinations;
 
     if (validate(source, Readable) && validate(destinations, Array) && validate(...destinations, Writable)) {
+      let errored = false;
       const onError = err => {
+        errored = true;
         return delegate.destroy(err);
-      };
-
-      const checkEnded = () => {
-        if (destinations.every(s => s.destroyed || s.writableEnded)) {
-          return delegate.destroy();
-        }
       };
 
       // source's possible error events will be handled by pipeline
@@ -667,10 +663,20 @@ async function streamEdit (options) {
       const delegate = new Writable({
         async write(chunk, encoding, cb) {
           try {
+            // Calling the .write() method after calling .destroy() will raise an error.
             await Promise.all(
               destinations.map(writableStream => {
-                if (writableStream.destroyed || writableStream.writableEnded)
-                  return checkEnded();
+                if(errored) {
+                  return Promise.resolve(); // do nothing
+                }
+
+                if(writableStream.writableEnded) {
+                  throw new Error("stream-editor: a stream destination has been ended prematurely.");
+                }
+
+                if (writableStream.destroyed) {
+                  throw new Error("stream-editor: a stream destination has been destroyed brutely.");
+                }
 
                 return new Promise((resolve, reject) =>
                   writableStream.write(
@@ -684,6 +690,7 @@ async function streamEdit (options) {
           } catch (err) {
             return cb(err);
           }
+
           return cb();
         },
         destroy(err, cb) {
@@ -697,6 +704,7 @@ async function streamEdit (options) {
           await Promise.all(
             destinations.map(
               writableStream => new Promise((resolve, reject) => {
+                // end can be called multiple times, if additional chunk of data is to be written
                 writableStream.end(() => {
                   writableStream.removeListener("error", onError);
                   return resolve();
