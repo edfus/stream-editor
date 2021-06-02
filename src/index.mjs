@@ -520,7 +520,7 @@ async function streamEdit (options) {
         );
       }
       
-      return Promise.all(promises); //TODO to allSettled
+      return Promise.all(promises);
     } else {
       throw (
         new TypeError(
@@ -561,10 +561,16 @@ async function streamEdit (options) {
       );
 
       return new Promise(async (resolve, reject) => {
+        let rootRejectCalled = false;
+        const rootReject = reason => {
+          rootRejectCalled = true;
+          return reject(reason);
+        };
+
         const destroy = err => {
           resultStreams.forEach(stream => !stream.destroyed && stream.destroy());
           !destination.destroyed && destination.destroy();
-          return reject(err);
+          return rootReject(err);
         };
 
         Promise.all(resultPromises).catch(destroy);
@@ -574,17 +580,40 @@ async function streamEdit (options) {
           await resultStreams.reduce(async (frontWorkDone, resultStream, i) => {
             await frontWorkDone;
             await new Promise((resolve, reject) => {
-              if (resultStream.destroyed) {
-                return i < lastIndex ? resolve() : destination.end(resolve);
+              if(destination.destroyed || destination.writableEnded) {
+                if (destination.destroyed) {
+                  if (rootRejectCalled) {
+                    return resolve(); // do nothing
+                  } else {
+                    return reject(
+                      new Error("stream-editor: destination destroyed brutely.")
+                    );
+                  }
+                }
+                
+                // writableEnded
+                return reject(
+                  new Error("stream-editor: destination ended prematurely.")
+                );
+              }
+
+              if (resultStream.destroyed || resultStream.readableEnded) {
+                if (i >= lastIndex) {
+                  return destination.end(resolve);
+                }
+
+                return resolve(); // silently skip
               }
 
               resultStream
                 .once("error", reject)
                 .once("end", () => {
-                  if (i < lastIndex) {
-                    if (destination.destroyed || destination.writableEnded)
-                      return resolve();
+                  if (destination.destroyed || destination.writableEnded)
+                    return reject(
+                      new Error("stream-editor: premature destination close.")
+                    );
 
+                  if (i < lastIndex) {
                     return destination.write(
                       contentJoin, encoding,
                       err => err ? reject(err) : resolve()
