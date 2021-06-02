@@ -75,7 +75,7 @@ function substituteCaptureGroupPlaceholders(target, $and, ...rest) {
   ).replace(/\$\$/g, "$");
 }
 
-function getReplaceFunc(options) {
+function getProcessOptions(options) {
   //TODO line
   let replace = [];
 
@@ -143,21 +143,6 @@ function getReplaceFunc(options) {
     };
   }
 
-  let replaceSet;
-  const callback = (part, EOF) => {
-    if (typeof part !== "string")
-      return ""; // For cases like "Adbfdbdafb".split(/(?=([^,\n]+(,\n)?|(,\n)))/)
-
-    replaceSet.forEach(rule => {
-      part = part.replace(
-        rule.pattern,
-        rule.replacement
-      );
-    });
-
-    return postProcessing(part, EOF);
-  };
-
   const defaultOptions = options.defaultOptions;
 
   if (!validate(defaultOptions, Object)) {
@@ -167,7 +152,12 @@ function getReplaceFunc(options) {
     ].join(" "));
   }
 
-  replaceSet = new Set(
+  const channel = {
+    withLimit: false,
+    _notifyLimitReached: void 0
+  };
+
+  const replaceSet = new Set(
     replace.map(replaceActions => {
       let { match, search, replacement } = replaceActions;
       let { isFullReplacement, limit, maxTimes, disablePlaceholders } = findWithDefault(
@@ -325,7 +315,7 @@ function getReplaceFunc(options) {
       // limit
       if (limit && validate(limit, 1) || globalLimit) {
         let counter = 0;
-        const funcPtr = rule.replacement;
+        const subtleReplacement = rule.replacement;
 
         rule.replacement = function (notify, ...args) {
           if (
@@ -333,27 +323,26 @@ function getReplaceFunc(options) {
             || ++counter >= limit
           )
             /**
-             * when ===, notify() but still perform a replacement.
-             * when >  , return the whole unmodified match string.
+             * when ===, notify() but a replacement is still performed.
+             * when >  , just return the whole unmodified match string.
              */
             if (notify() === Symbol.for("notified"))
               return args[0];
 
-          return funcPtr.apply(this, args);
-        }.bind(rule, () => callback._cb_limit());
+          return subtleReplacement.apply(this, args);
+        }.bind(void 0, () => channel._notifyLimitReached());
 
-        callback.withLimit = true;
-        callback.truncate = options.truncate;
+        channel.withLimit = true;
       }
 
       // max times executed
       if (maxTimes && validate(maxTimes, 1)) {
         let counter = 0;
-        const funcPtr = rule.replacement;
+        const subtleReplacement = rule.replacement;
 
         rule.replacement = function () {
           /**
-           * when ===, delete itself but still perform a replacement.
+           * when ===, do the substitution and mark this rule as EOL.
            * when >  , return the whole unmodified match string.
            * 
            * This is necessary as there might be multiple rounds of 
@@ -365,15 +354,38 @@ function getReplaceFunc(options) {
             replaceSet.delete(rule);
           }
 
-          return funcPtr.apply(this, arguments);
+          return subtleReplacement.apply(void 0, arguments);
         };
       }
 
       return rule;
-    })
+    }) // do not insert a semicolon here
   );
 
-  return callback;
+  const processFunc = (part, EOF) => {
+    if (typeof part !== "string")
+      return ""; // For cases like "Adbfdbdafb".split(/(?=([^,\n]+(,\n)?|(,\n)))/)
+
+    replaceSet.forEach(rule => {
+      part = part.replace(
+        rule.pattern,
+        rule.replacement
+      );
+    });
+
+    return postProcessing(part, EOF);
+  };
+
+  return { channel, processFunc };
+}
+
+function addProcessOptions(assignee, ...argv) {
+  const options = getProcessOptions(...argv);
+  return Object.assign(assignee, options);
+}
+
+function updateProcessOptions() {
+  return addProcessOptions.apply(this, arguments);
 }
 
 /**
@@ -435,7 +447,7 @@ function normalizeOptions(options) {
     postProcessing: getOption("postProcessing")
   };
 
-  const transformOptions = {
+  const transformOptions = addProcessOptions({
     separator: hasOption("separator") ? getOption("separator") : /(?<=\r?\n)/,
     encoding: getOption("encoding") || null,
     decodeBuffers: getOption("decodeBuffers") || "utf8",
@@ -445,10 +457,8 @@ function normalizeOptions(options) {
     writeStart: getOption("writeStart") || 0,
     readableObjectMode: Boolean(getOption("readableObjectMode")),
 
-    processFunc: getReplaceFunc(replaceOptions),
-
     contentJoin: getOption("contentJoin") || ""
-  };
+  }, replaceOptions);
 
   const from = getOption("from");
   const to = getOption("to");
@@ -581,7 +591,7 @@ async function streamEdit (options) {
       ];
 
       for (let i = 1; i < files.length; i++) {
-        transformOptions.processFunc = getReplaceFunc(replaceOptions);
+        updateProcessOptions(transformOptions, replaceOptions);
         promises.push(
           rw_stream(
             files[i],
@@ -623,7 +633,7 @@ async function streamEdit (options) {
           );
 
           if(i < lastIndex)
-            transformOptions.processFunc = getReplaceFunc(replaceOptions);
+            updateProcessOptions(transformOptions, replaceOptions);
 
           resultStreams.push(passThrough);
           return promise;

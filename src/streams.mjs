@@ -8,24 +8,24 @@ async function process_stream (
   options
 ) {
 
-  const { processFunc, truncate } = options;
+  const { channel, truncate } = options;
 
   let transformStream;
 
   try {
-    if (processFunc.withLimit) {
+    if (channel.withLimit) {
       transformStream = new NukableTransform({
           ...options,
-          withFalloutShelter: !truncate,
+          withFalloutShelter: !truncate
       });
   
       let limitReached = false;
-      processFunc._cb_limit = () => {
+      channel._notifyLimitReached = () => {
         if (limitReached) {
           return Symbol.for("notified");
         } else {
           limitReached = true;
-          transformStream.detonateTheBombNow = true
+          transformStream.detonateTheBombNow = true;
           // starting from v14.0.0, The pipeline will wait for the 'close' event
           // for non-duplex & non-legacy streams created with the emitClose option.
           // so marking the end of the readableStream manually is required.
