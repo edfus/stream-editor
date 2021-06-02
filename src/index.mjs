@@ -1,5 +1,7 @@
-import { processStreaming, rwStreaming } from "./streams.mjs";
 import { PassThrough, Readable, Writable } from "stream";
+
+import { processStreaming, rwStreaming } from "./streams.mjs";
+import { verbose, warn, Options, findWithDefault, is, validate } from "./helpers.mjs";
 
 let escapeRegEx; // lazy load
 const captureGroupPlaceholdersPattern = /(?<!\\)\$([1-9]{1,3}|\&|\`|\')/;
@@ -8,16 +10,6 @@ const captureGroupPlaceholdersPatternGlobal = new RegExp(captureGroupPlaceholder
 // is () and not \( \) nor (?<=x) (?<!x) (?=x) (?!x)
 // (?!\?) alone is enough, as /(?/ is an invalid RegExp
 const splitToPCGroupsPattern = /(.*?)(?<!\\)\((?!\?)(.*)(?<!\\)\)(.*)/;
-
-const checkIsColorEnabled = (
-  tty =>
-    "FORCE_COLOR" in process.env
-    ? [1, 2, 3, "", true, "1", "2", "3", "true"].includes(process.env.FORCE_COLOR)
-    : !(
-      "NO_COLOR" in process.env ||
-      process.env.NODE_DISABLE_COLORS == 1 // using == by design
-    ) && tty.isTTY
-);
 
 function substituteCaptureGroupPlaceholders(target, $and, ...rest) {
   let i = 0;
@@ -76,7 +68,6 @@ function substituteCaptureGroupPlaceholders(target, $and, ...rest) {
 }
 
 function getProcessOptions(options) {
-  //TODO line
   let replace = [];
 
   let globalLimit = 0;
@@ -392,42 +383,6 @@ function updateProcessOptions() {
  * handle input
  */
 
-class Options {
-  constructor(options) {
-    this.options = Object.assign({}, options);
-    this.got = Symbol("got");
-  }
-
-  _has(name) {
-    return name in this.options;
-  }
-
-  _get(name) {
-    const result = this.options[name];
-    if (name in this.options)
-      this.options[name] = this.got;
-    return result;
-  }
-
-  _warnUnknown() {
-    const unknownOptions = [];
-    for (const prop of Object.keys(this.options)) {
-      if (this.options[prop] !== this.got) {
-        unknownOptions.push(prop);
-      }
-    }
-    if (unknownOptions.length) {
-      warn(
-        `stream-editor: Received unknown/unneeded options: ${unknownOptions.join(', ')}.`
-      );
-    }
-  }
-
-  has = name => this._has(name);
-  get = name => this._get(name);
-  warnUnknown = () => this._warnUnknown();
-}
-
 function normalizeOptions(options) {
   const { has: hasOption, get: getOption, warnUnknown } = new Options(options);
 
@@ -496,41 +451,6 @@ function normalizeOptions(options) {
   };
 }
 
-/**
- * format output
- */
-
-let inspect;
-async function verbose(err, parsedOptions, orinOptions) {
-  if (!inspect)
-    inspect = (await import("util")).inspect;
-
-  if(typeof parsedOptions !== "object")
-    return err;
-
-  const indent = " ".repeat(2);
-  const depth  = 1;
-  const colors  = checkIsColorEnabled(process.stderr);
-
-  err.message = err.message.concat([
-    "\nParsed options: {",
-    ...Object.entries(parsedOptions).map(([key, value]) => 
-      indent.concat(`${key}: ${inspect(value, { depth, colors }).replace(/\n/g, `\n${indent}`)}`)
-    ),
-    "}\n",
-    `Original options: ${inspect(orinOptions, { depth, colors })}`
-  ].join("\n").replace(/\n/g, `\n${indent}`));
-
-  return err;
-}
-
-function warn (warning) {
-  if(checkIsColorEnabled(process.stdout)) {
-    console.warn(`\x1b[33m${warning}\x1b[0m`);
-  } else {
-    console.warn(warning);
-  }
-}
 
 /**
  * main
@@ -786,38 +706,6 @@ async function streamEdit (options) {
   
   error.code = 'EINVAL';
   throw error;
-}
-
-function is(toValidate, ...types) {
-  return types.some(type => validate(toValidate, type));
-}
-
-function validate(...args) {
-  const should_be = args.splice(args.length - 1, 1)[0];
-
-  if (should_be === Array)
-    return args.every(arg => Array.isArray(arg) && arg.length);
-
-  const type = typeof should_be;
-  switch (type) {
-    case "function": return args.every(arg => arg instanceof should_be);
-    case "object": return args.every(arg => typeof arg === "object" && arg.constructor === should_be.constructor);
-    case "string": return args.every(arg => typeof arg === "string" && arg.length >= should_be.length);
-    case "number": return args.every(arg => typeof arg === "number" && !isNaN(arg) && arg >= should_be); // comparing NaN with other numbers always returns false, though.
-    default: return args.every(arg => typeof arg === type);
-  }
-}
-
-function findWithDefault(options, defaultOptions, ...names) {
-  const result = {};
-  for (const name of names) {
-    if(options[name] !== undefined) {
-      result[name] = options[name];
-    } else {
-      result[name] = defaultOptions[name];
-    }
-  }
-  return result;
 }
 
 export { streamEdit, streamEdit as sed };
