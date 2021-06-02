@@ -2,7 +2,7 @@ import { pipeline } from "stream";
 import rw from "./rw-stream/index.mjs";
 import { Transform, NukableTransform } from "./transform.mjs";
 
-async function process_stream (
+async function processStreaming (
   readableStream,
   writableStream,
   options
@@ -56,7 +56,7 @@ async function process_stream (
 }
 
 
-async function rw_stream(filepath, options) {
+async function rwStreaming(filepath, options) {
   const { readableStream, writableStream } = await rw(
     filepath,
     {
@@ -65,8 +65,8 @@ async function rw_stream(filepath, options) {
     }
   );
 
-  return process_stream(readableStream, writableStream, options)
+  return processStreaming(readableStream, writableStream, options)
             .then(() => void 0); // not leaking the reference to local writableStream
 }
 
-export { rw_stream, process_stream };
+export { rwStreaming, processStreaming };

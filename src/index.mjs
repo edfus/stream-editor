@@ -1,4 +1,4 @@
-import { process_stream, rw_stream } from "./streams.mjs";
+import { processStreaming, rwStreaming } from "./streams.mjs";
 import { PassThrough, Readable, Writable } from "stream";
 
 let escapeRegEx; // lazy load
@@ -546,7 +546,7 @@ async function streamEdit (options) {
    */
   if (streamOptions.file !== undefined) {
     if (validate(streamOptions.file, ".")) {
-      return rw_stream(
+      return rwStreaming(
         streamOptions.file,
         transformOptions
       );
@@ -563,7 +563,7 @@ async function streamEdit (options) {
     const writableStream = streamOptions.writableStream;
 
     if (validate(readableStream, Readable) && validate(writableStream, Writable)) {
-      return process_stream(
+      return processStreaming(
         readableStream,
         writableStream,
         transformOptions
@@ -584,7 +584,7 @@ async function streamEdit (options) {
       //TODO option for considering files as a single, continuous long stream
       const files = streamOptions.files;
       const promises = [
-        rw_stream(
+        rwStreaming(
           files[0],
           transformOptions
         )
@@ -593,7 +593,7 @@ async function streamEdit (options) {
       for (let i = 1; i < files.length; i++) {
         updateProcessOptions(transformOptions, replaceOptions);
         promises.push(
-          rw_stream(
+          rwStreaming(
             files[i],
             transformOptions
           )
@@ -626,7 +626,7 @@ async function streamEdit (options) {
       const resultPromises = sources.map(
         (src, i) => {
           const passThrough = new PassThrough();
-          const promise = process_stream(
+          const promise = processStreaming(
             src,
             passThrough,
             transformOptions
@@ -759,7 +759,7 @@ async function streamEdit (options) {
         }
       });
 
-      return process_stream(
+      return processStreaming(
         source,
         delegate,
         transformOptions
