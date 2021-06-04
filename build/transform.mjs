@@ -31,7 +31,7 @@ class Transform extends Node_Transform {
     this.channel = channel;
   }
 
-  _transform (texts, encoding, cb) {
+  async _transform (texts, encoding, cb) {
     if(encoding === "buffer") {
       texts = this.decoder.decode(texts, { stream: true });
     }
@@ -62,7 +62,7 @@ class Transform extends Node_Transform {
 
     for (let i = 0, ret; i < parts.length - 1; i++) {
       try {
-        ret = this.process(parts[i], false);
+        ret = await this.process(parts[i], false);
       } catch (err) {
         return cb(err);
       }
@@ -82,7 +82,7 @@ class Transform extends Node_Transform {
   async _flush (cb) {
     try {
       this.push(
-        this.process(this[kSource].concat(this.decoder.decode()), true)
+        await this.process(this[kSource].concat(this.decoder.decode()), true)
       );
       await this.channel.final();
     } catch (err) {

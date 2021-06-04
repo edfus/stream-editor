@@ -30,7 +30,7 @@ A partial replacement is replacing only the 1st parenthesized capture group subs
 Take the following snippet converting something like `import x from "../src/x.mjs"` into `import x from "../build/x.mjs"` as an example:
 
 ```js
-import { sed as updateFileContent } from "stream-editor" ;
+import { sed as updateFileContent } from "stream-editor";
 
 updateFileContent({
   file: "index.mjs",
@@ -54,6 +54,43 @@ function matchImport (addtionalPattern) {
 Special replacement patterns (parenthesized capture group placeholders) are well supported in a partial replacement, either for function replacements or string replacements. And all other concepts are designed to keep firmly to their origins in vanilla String.prototype.replace method, though the $& (also the 1st supplied value to replace function) and $1 (the 2nd param passed) always have the same value, supplying the matched substring in 1st PCG.
 
 You can specify a truthy `isFullReplacement` to perform a full replacment instead.
+
+### Asynchronous replacement
+
+Yes, asynchronous function replacements just work like a charm.
+
+```js
+import { streamEdit } from "stream-editor";
+
+const filepath = "./index.js";
+const dest = "./build/index.js";
+
+streamEdit({
+  from: fs.createReadStream(filepath),
+  to: fs.createWriteStream(dest),
+  replace: [
+    {
+      // match ${{ import("module.mjs") }} | ${{ expr( 1 + 1 ) }}
+      match: /\$\{\{\s*([A-Z_-]+?)\s*\(\s*(.+?)\s*\)\s*\}\}/i,
+      replacement: async (whole, method, input) => {
+        switch (method.toUpperCase()) {
+          case "IMPORT":
+            input = input.replace(/^["']|["']$/g, "");
+            const importFilePath = path.join(path.dirname(filepath), input);
+            return fs.promises.readFile(importFilePath, "utf-8");
+          case "EXPR":
+            return (async () => String(await eval(input)))();
+          default:
+            throw new Error(`unknown method ${method} in ${whole}`);
+        }
+      }
+    }
+  ],
+  defaultOptions: {
+    isFullReplacement: true
+  }
+});
+```
 
 ### Substituting texts within files in streaming fashion
 
@@ -233,18 +270,20 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
     √ can handle malformed (without capture groups) partial replacement
     √ can await replace partially with function
     √ recognize $\d{1,3} $& $` $' and check validity (throw warnings)
+    √ produce the same result as String.prototype.replace
 
   Edit streams
     √ should check arguments
     √ should warn unknown/unneeded options
     √ should respect FORCE_COLOR, NO_COLOR, NODE_DISABLE_COLORS
-    √ should pipe one Readable to multiple dumps (59ms)
+    √ should pipe one Readable to multiple dumps (64ms)
     √ should replace CRLF with LF
     √ should have replaced /dum(b)/i to dumpling (while preserving dum's case)
     √ should have global and local limits on replacement amount
     √ should have line buffer maxLength
     √ should edit and combine multiple Readable into one Writable
     √ has readableObjectMode
+    √ can handle async replacements
     √ can signal an unsuccessful substitution using beforeCompletion
     √ can declare a limit below which a substitution is considered failed for a search
     truncation & limitation
@@ -270,12 +309,13 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
       √ can handle errors thrown from replacement functions
     corner cases
       √ can handle empty content
-      √ can handle non-string in regular expression split result
+      √ can handle regular expressions that always match
+      √ can handle non-string in a regExp separator's split result
     try-on
       √ can handle files larger than 64KiB
 
 
-  42 passing (325ms)
+  45 passing (332ms)
 
 ```
 
@@ -294,7 +334,7 @@ An object input with one or more following options is acceptable to `streamEdit`
 | name          | alias | expect                  | safe to ignore | default    |
 | :--:          |  :-:  | :-----:                 | :-:      |  :--:      |
 | search        | match | `string` \| `RegExp`    | ✔       |  none      |
-| replacement   |   x   | `string` \|  `(wholeMatch, ...args) => string`  | ✔  | none |
+| replacement   |   x   | `string` \|  `[async] (wholeMatch, ...args) => string`  | ✔  | none |
 | limit         |   x   | `number`                | ✔       |  `Infinity` |
 | maxTimes      |   x   | `number`                | ✔       |  `Infinity` |
 | minTimes      |   x   | `number`                | ✔       |  `0`        |
@@ -378,7 +418,7 @@ interface SearchAndReplaceOptions extends BasicReplaceOptions {
    * a function that returns the replacement text can be passed.
    * 
    * Special replacement patterns (parenthesized capture group placeholders)
-   * are well supported.
+   *  / async replacement functions are well supported.
    * 
    * For a partial replacement, $& (also the 1st supplied value to replace
    * function) and $1 (the 2nd param passed) always have the same value,

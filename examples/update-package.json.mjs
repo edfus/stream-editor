@@ -32,7 +32,7 @@ Promise.all(
 
               nums.reduceRight((carry, current_num, index) => {
                 current_num += carry;
-                if(current_num >= 10 && index !== 0) { // in case 9.9.9 -> 9.0.0
+                if(current_num >= 10 && index === 2) { // in case 9.9.9 -> 9.0.0
                   nums[index] = String(0);
                   return 1;
                 } else {

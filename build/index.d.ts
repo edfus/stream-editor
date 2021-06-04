@@ -57,15 +57,16 @@ interface BasicReplaceOption extends BasicInfrequentReplaceOption {
    * a function that returns the replacement text can be passed.
    * 
    * Special replacement patterns (parenthesized capture group placeholders)
-   * are well supported.
+   *  / async replacement functions are well supported.
    * 
    * For a partial replacement, $& (also the 1st supplied value to replace
    * function) and $1 (the 2nd param passed) always have the same value,
    * supplying the matched substring in the parenthesized capture group
    * you specified.
    */
-  replacement?: string | ((wholeMatch: string, ...args: string[]) => string);
-
+  replacement?: 
+    string | ((wholeMatch: string, ...args: string[]) => string)
+    | ((wholeMatch: string, ...args: string[]) => Promise<string>)
 }
 
 interface SearchAndReplaceOption extends BasicReplaceOption {
