@@ -581,20 +581,20 @@ async function streamEdit (options) {
             await frontWorkDone;
             await new Promise((resolve, reject) => {
               if(destination.destroyed || destination.writableEnded) {
-                if (destination.destroyed) {
-                  if (rootRejectCalled) {
-                    return resolve(); // do nothing
-                  } else {
-                    return reject(
-                      new Error("stream-editor: destination destroyed brutely.")
-                    );
-                  }
+                if(destination.writableEnded) {
+                  return reject(
+                    new Error("stream-editor: destination has been ended prematurely.")
+                  );
                 }
-                
-                // writableEnded
-                return reject(
-                  new Error("stream-editor: destination ended prematurely.")
-                );
+
+                // destroyed
+                if (rootRejectCalled) {
+                  return resolve(); // do nothing
+                } else {
+                  return reject(
+                    new Error("stream-editor: destination has been destroyed brutely.")
+                  );
+                }
               }
 
               if (resultStream.destroyed || resultStream.readableEnded) {
@@ -619,7 +619,7 @@ async function streamEdit (options) {
                       err => err ? reject(err) : resolve()
                     );
                   } else {
-                    destination.end(resolve);
+                    return destination.end(resolve);
                   }
                 })
                 .pipe(destination, { end: false })
