@@ -522,7 +522,7 @@ describe("Edit streams", () => {
     );
   });
 
-  it("can declare a limit below which a substitution is considered failed for a search ", async () => {
+  it("can declare a limit below which a substitution is considered failed for a search", async () => {
     let counter = 0;
     await assert.rejects(
       () => streamEdit({

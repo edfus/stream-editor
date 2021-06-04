@@ -36,7 +36,8 @@ updateFileContent({
   file: "index.mjs",
   search: matchParentFolderImport(/(src\/(.+?))/),
   replacement: "build/$2",
-  maxTimes: 2
+  maxTimes: 2,
+  required: true
 });
 
 function matchImport (addtionalPattern) {
@@ -229,7 +230,7 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
     √ can handle non-capture-group parenthesized pattern: Assertions
     √ can handle non-capture-group parenthesized pattern: Round brackets
     √ can handle pattern starts with a capture group
-    √ can handle partial replacement but without capture groups
+    √ can handle malformed (without capture groups) partial replacement
     √ can await replace partially with function
     √ recognize $\d{1,3} $& $` $' and check validity (throw warnings)
 
@@ -237,13 +238,15 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
     √ should check arguments
     √ should warn unknown/unneeded options
     √ should respect FORCE_COLOR, NO_COLOR, NODE_DISABLE_COLORS
-    √ should pipe one Readable to multiple dumps (55ms)
+    √ should pipe one Readable to multiple dumps (59ms)
     √ should replace CRLF with LF
     √ should have replaced /dum(b)/i to dumpling (while preserving dum's case)
-    √ should have global and local limitations in replacement amount
+    √ should have global and local limits on replacement amount
     √ should have line buffer maxLength
     √ should edit and combine multiple Readable into one Writable
     √ has readableObjectMode
+    √ can signal an unsuccessful substitution using beforeCompletion
+    √ can declare a limit below which a substitution is considered failed for a search
     truncation & limitation
       √ truncating the rest when limitations reached
       √ not: self rw-stream
@@ -254,20 +257,25 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
     error handling
       √ destroys streams properly when one of them closed prematurely
       √ destroys streams properly if errors occurred during initialization
-      √ multiple streams: can correctly propagate errors emitted by readableStreams
-      √ multiple streams: can handle prematurely destroyed readableStreams
-      √ multiple streams: can correctly propagate errors emitted by writableStream
-      √ multiple streams: can correctly propagate errors emitted by writableStreams
-      √ multiple streams: can handle prematurely destroyed writableStreams
-      √ multiple streams: can handle prematurely ended writableStreams
+      √ multiple-to-one: can correctly propagate errors emitted by readableStreams
+      √ multiple-to-one: can handle prematurely destroyed readableStreams
+      √ multiple-to-one: can correctly propagate errors emitted by writableStream
+      √ multiple-to-one: can handle prematurely ended writableStream
+      √ multiple-to-one: can handle prematurely destroyed writableStream
+      √ one-to-multiple: can correctly propagate errors emitted by writableStreams
+      √ one-to-multiple: can handle prematurely ended writableStreams
+      √ one-to-multiple: can handle prematurely destroyed writableStreams
+      √ can handle errors thrown from postProcessing
+      √ can handle errors thrown from join functions
+      √ can handle errors thrown from replacement functions
     corner cases
       √ can handle empty content
       √ can handle non-string in regular expression split result
     try-on
-      √ can handle files larger than 16KiB
+      √ can handle files larger than 64KiB
 
 
-  35 passing (284ms)
+  42 passing (325ms)
 
 ```
 
@@ -289,12 +297,15 @@ An object input with one or more following options is acceptable to `streamEdit`
 | replacement   |   x   | `string` \|  `(wholeMatch, ...args) => string`  | ✔  | none |
 | limit         |   x   | `number`                | ✔       |  `Infinity` |
 | maxTimes      |   x   | `number`                | ✔       |  `Infinity` |
+| minTimes      |   x   | `number`                | ✔       |  `0`        |
+| required      |   x   | `boolean`               | ✔       |  `false`    |
 | isFullReplacement | x | `boolean`               | ✔       |  `false`    |
 | disablePlaceholders |x| `boolean`               | ✔       |  `false`    |
 | replace       |   x   | an `Array` of { `search`, `replacement` }        | ✔ | none |
 | defaultOptions|   x   | `BasicReplaceOptions`   | ✔       |    `{}`     |
 | join          |   x   | `string` \| `(part: string) => string` \| `null` | ✔ | `part => part`  |
 | postProcessing|   x   | `(part: string, isLastPart: boolean) => any`     | ✔ | none  |
+| beforeCompletion|   x   | `() => promise<void> | void`  | ✔ | none  |
 
 ```ts
 type GlobalLimit = number;
@@ -333,6 +344,15 @@ interface BasicReplaceOptions {
    * Default: Infinity. 0 is considered as Infinity for this option.
    */
   maxTimes?: number;
+  /**
+   * For the search you specified, add a limit below which the substitution
+   * is considered failed.
+   */
+  minTimes?: number;
+  /**
+   * Sugar for minTimes = 1
+   */
+  required?: boolean;
 }
 
 interface SearchAndReplaceOptions extends BasicReplaceOptions {
@@ -414,6 +434,15 @@ interface BasicOptions extends ReplaceOptions {
    * streams can be returned.
    */
   postProcessing: (part: string, isLastPart: boolean) => any
+  /**
+   * This optional function will be called before the destination(s) close,
+   * delaying the resolution of the promise returned by streamEdit() until
+   * beforeCompletion resolves.
+   * 
+   * You can also return a rejected promise or simply raise an error to signal a
+   * failure and destroy all streams.
+   */
+  beforeCompletion: () => Promise<void> | void
 }
 ```
 
