@@ -34,11 +34,11 @@ class Replacer {
         from: teleporter,
         to: teleporter,
         ...this.options
-      }).catch(reject)
+      }).catch(reject);
   
-      return resolve(
+      return (
         teleporter.teleport(str).then(result => result.toString())
-      );
+      ).then(resolve, reject);
     })
   }
 
@@ -319,6 +319,19 @@ describe("Normalize & Replace", () => {
     strictEqual(
       await replace_p2("Attention!!! huge dinosaur goes brrrr!!!"),
       "Attention!!! huge $dino$(saur!???)$4 saur goes brrrr!!!"
+    );
+  });
+
+  it("produce the same result as String.prototype.replace", async () => {
+    const { replace: replace_f } = new Replacer({
+      match: /^|$|.*?/,
+      replacement: "($`!)$&$$$'",
+      isFullReplacement: true
+    });
+
+    strictEqual(
+      await replace_f("phishing"),
+      "phishing".replace(/^|$|.*?/g, "($`!)$&$$$'")
     );
   });
 });

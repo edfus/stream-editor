@@ -255,7 +255,7 @@ function getProcessOptions(options) {
               flags
             ),
           replacement:
-            (wholeMatch, precededPart, substrMatch, ...rest) => {
+            async (wholeMatch, precededPart, substrMatch, ...rest) => {
               let _replacement = replacement;
               if (specialTreatmentNeeded) {
                 let i = 0;
@@ -269,12 +269,12 @@ function getProcessOptions(options) {
                 const userDefinedGroups = [substrMatch].concat(rest.slice(0, i));
 
                 if (isFunction) {
-                  // partial replacement with a function
-                  _replacement = replacement(
+                  // function as a partial replacement
+                  _replacement = await replacement(
                     substrMatch, ...userDefinedGroups, wholeMatch.indexOf(substrMatch), wholeMatch
                   );
                 } else {
-                  // has capture group placeHolder
+                  // is string & may have capture group placeHolders
                   _replacement = _replacement.replace(
                     captureGroupPlaceholdersPatternGlobal,
                     $n => {
@@ -402,16 +402,54 @@ function getProcessOptions(options) {
     }) // do not insert a semicolon here
   );
 
-  const processFunc = (part, EOF) => {
-    if (typeof part !== "string")
-      return ""; // For cases like "Adbfdbdafb".split(/(?=([^,\n]+(,\n)?|(,\n)))/)
+  const processFunc = async (part, EOF) => {
+    if (typeof part !== "string") {
+      return postProcessing(part); // For cases like "Adbfdbdafb".split(/(?=([^,\n]+(,\n)?|(,\n)))/)
+    }
+      
+    for (const rule of replaceSet) {
+      let ret;
+      const resultIndices = [];
+      const resultPromises = [];
 
-    replaceSet.forEach(rule => {
-      part = part.replace(
-        rule.pattern,
-        rule.replacement
-      );
-    });
+      const { pattern, replacement: asyncReplace } = rule;
+      let trapWatchDog_i = -1;
+
+      while ((ret = pattern.exec(part)) !== null) {
+        if(trapWatchDog_i === pattern.lastIndex) {
+          pattern.lastIndex++;
+          continue;
+        }
+
+        trapWatchDog_i = pattern.lastIndex;
+
+        const startIndex = ret.index;
+        const endIndex = ret.index + ret[0].length;
+        const replacedResultPromise = asyncReplace(
+          ...ret, ret.index, ret.input, ret.groups
+        ); // the sync or async replacement function
+        
+        resultIndices.push({
+          startIndex,
+          endIndex
+        });
+        resultPromises.push(replacedResultPromise);
+      }
+
+      const results = await Promise.all(resultPromises);
+
+      let lastIndex = 0;
+      let greedySnake = "";
+      
+      for (let i = 0; i < results.length; i++) {
+        greedySnake = greedySnake.concat(
+          part.slice(lastIndex, resultIndices[i].startIndex).concat(results[i])
+        );
+        lastIndex = resultIndices[i].endIndex;
+      }
+
+      part = greedySnake.concat(part.slice(lastIndex, part.length));
+    }
 
     return postProcessing(part, EOF);
   };

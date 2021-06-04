@@ -492,6 +492,43 @@ describe("Edit streams", () => {
     );
   });
 
+  it("can handle async replacements", async () => {
+    let counter = 0;
+    await streamEdit({
+      from: new Readable({
+        highWaterMark: 20,
+        read(size) {
+          this.push(String(counter++).concat("."));
+          if (counter === 15) {
+            return this.push(null);
+          }
+        }
+      }),
+      to: new Writable({
+        objectMode: true,
+        write(chunk, enc, cb) {
+          try {
+            strictEqual(/[^0.2-9]/.test(chunk), false);
+          } catch (err) {
+            return cb(err);
+          }
+          
+          return cb();
+        }
+      }),
+      separator: ".",
+      search: /(1)/,
+      isFullReplacement: true,
+      replacement: async (digitOne, captureGroup, index, whole) => {
+        strictEqual(digitOne, captureGroup);
+        assert.ok([0, 1].includes(index));
+        assert.ok(/^1\d?$/.test(whole));
+        await new Promise(resolve => process.nextTick(resolve));
+        return String(parseInt(digitOne) * 2);
+      }
+    });
+  });
+
   it("can signal an unsuccessful substitution using beforeCompletion", async () => {
     let counter = 0;
     await assert.rejects(
@@ -1187,7 +1224,28 @@ describe("Edit streams", () => {
       );
     });
 
-    it("can handle non-string in regular expression split result", async () => {
+    it("can handle regular expressions that always match", async () => {
+      await streamEdit({
+        readableStream: new Readable({
+          highWaterMark: 5,
+          read(size) {
+            this.push("mukyu ".repeat(5));
+            this.push(null);
+          }
+        }),
+        writableStream: new Writable({
+          write(chunk, enc, cb) {
+            return cb();
+          }
+        }),
+        separator: /\s/,
+        search: /^|$|.*?/,
+        replacement: "$`",
+        disablePlaceholders: true
+      });
+    });
+
+    it("can handle non-string in a regExp separator's split result", async () => {
       await streamEdit({
         readableStream: new Readable({
           highWaterMark: 5,
