@@ -759,7 +759,7 @@ describe("Edit streams", () => {
       }
     });
 
-    it("multiple streams: can correctly propagate errors emitted by readableStreams", async () => {
+    it("multiple-to-one: can correctly propagate errors emitted by readableStreams", async () => {
       await assert.rejects(
         () => streamEdit({
           readableStreams: new Array(10).fill(
@@ -785,7 +785,7 @@ describe("Edit streams", () => {
       );
     });
 
-    it("multiple streams: can handle prematurely destroyed readableStreams", async () => {
+    it("multiple-to-one: can handle prematurely destroyed readableStreams", async () => {
       await assert.rejects(
         () => streamEdit({
           readableStreams: new Array(10).fill(
@@ -816,7 +816,7 @@ describe("Edit streams", () => {
       );
     });
 
-    it("multiple streams: can correctly propagate errors emitted by writableStream", async () => {
+    it("multiple-to-one: can correctly propagate errors emitted by writableStream", async () => {
       await assert.rejects(
         () => streamEdit({
           readableStreams: new Array(10).fill(
@@ -841,7 +841,71 @@ describe("Edit streams", () => {
       );
     });
 
-    it("multiple streams: can correctly propagate errors emitted by writableStreams", async () => {
+    it("multiple-to-one: can handle prematurely ended writableStream", async () => {
+      await assert.rejects(
+        () => streamEdit({
+          readableStreams: new Array(10).fill(void 0).map(
+            _ => new Readable({
+              read(size) {
+                this.push(String(size));
+                this.push(null);
+              }
+            })
+          ),
+          writableStream: new Writable({
+            write(chunk, enc, cb) {
+              if(!this._counter) {
+                this._counter = 0;
+              }
+              if(++this._counter > 3) {
+                process.nextTick(() => this.end());
+                return cb();
+              }
+              return cb();
+            }
+          }),
+          contentJoin: "-=-===-=---&&^"
+        }),
+        {
+          name: "Error",
+          message: "stream-editor: destination has been ended prematurely."
+        }
+      );
+    });
+
+    it("multiple-to-one: can handle prematurely destroyed writableStream", async () => {
+      await assert.rejects(
+        () => streamEdit({
+          readableStreams: new Array(10).fill(void 0).map(
+            _ => new Readable({
+              read(size) {
+                this.push(String(size));
+                this.push(null);
+              }
+            })
+          ),
+          writableStream: new Writable({
+            write(chunk, enc, cb) {
+              if(!this._counter) {
+                this._counter = 0;
+              }
+              if(++this._counter > 3) {
+                process.nextTick(() => this.destroy());
+                return cb();
+              }
+              return cb();
+            }
+          }),
+          contentJoin: "-=-===-=---&&^"
+        }),
+        {
+          name: "Error",
+          message: "stream-editor: destination has been destroyed brutely."
+        }
+      );
+    });
+
+    it("one-to-multiple: can correctly propagate errors emitted by writableStreams", async () => {
       await assert.rejects(
         () => streamEdit({
           readableStream: new Readable({
@@ -867,34 +931,7 @@ describe("Edit streams", () => {
       );
     });
 
-    it("multiple streams: can handle prematurely destroyed writableStreams", async () => {
-      await assert.rejects(
-        () => streamEdit({
-          readableStream: new Readable({
-            highWaterMark: 6,
-            read(size) {
-              this.push("Afbdfbdbbdfb".repeat(6));
-              this.push(null);
-            }
-          })
-          ,
-          writableStreams: new Array(10).fill(
-            new Writable({
-              write(chunk, enc, cb) {
-                this.destroy();
-                return cb();
-              }
-            }).setMaxListeners(50)
-          )
-        }),
-        {
-          name: "Error",
-          message: "stream-editor: a stream destination has been destroyed brutely."
-        }
-      );
-    });
-
-    it("multiple streams: can handle prematurely ended writableStreams", async () => {
+    it("one-to-multiple: can handle prematurely ended writableStreams", async () => {
       await assert.rejects(
         () => streamEdit({
           readableStream: new Readable({
@@ -917,6 +954,33 @@ describe("Edit streams", () => {
         {
           name: "Error",
           message: "stream-editor: a stream destination has been ended prematurely."
+        }
+      );
+    });
+
+    it("one-to-multiple: can handle prematurely destroyed writableStreams", async () => {
+      await assert.rejects(
+        () => streamEdit({
+          readableStream: new Readable({
+            highWaterMark: 6,
+            read(size) {
+              this.push("Afbdfbdbbdfb".repeat(6));
+              this.push(null);
+            }
+          })
+          ,
+          writableStreams: new Array(10).fill(
+            new Writable({
+              write(chunk, enc, cb) {
+                this.destroy();
+                return cb();
+              }
+            }).setMaxListeners(50)
+          )
+        }),
+        {
+          name: "Error",
+          message: "stream-editor: a stream destination has been destroyed brutely."
         }
       );
     });
