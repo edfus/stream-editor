@@ -159,6 +159,11 @@ function getProcessOptions(options) {
   }
 
   const channel = {
+    final: async () => {
+      for (const task of beforeCompletionTasks) {
+        await task();
+      }
+    },
     withLimit: false,
     _notifyLimitReached: void 0
   };
@@ -407,10 +412,6 @@ function getProcessOptions(options) {
         rule.replacement
       );
     });
-
-    if(EOF) {
-      beforeCompletionTasks.forEach(f => f());
-    }
 
     return postProcessing(part, EOF);
   };

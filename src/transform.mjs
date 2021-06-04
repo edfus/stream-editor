@@ -11,7 +11,8 @@ class Transform extends Node_Transform {
     decodeBuffers,
     encoding,
     maxLength,
-    readableObjectMode
+    readableObjectMode,
+    channel
   }) {
     super({
       decodeStrings: false, // Accept string input
@@ -26,6 +27,8 @@ class Transform extends Node_Transform {
 
     this[kSource] = '';
     this.maxLength = maxLength;
+
+    this.channel = channel;
   }
 
   _transform (texts, encoding, cb) {
@@ -37,7 +40,7 @@ class Transform extends Node_Transform {
     this[kSource] = this[kSource].concat(parts[0]);
 
     if (parts.length === 1) {
-      if(this[kSource].length > this.maxLength)
+      if(this[kSource].length > this.maxLength) {
         return cb(
           new Error(
             `Maximum buffer length ${this.maxLength} reached: ...`
@@ -49,7 +52,9 @@ class Transform extends Node_Transform {
                 )
           )
         )
-      else return cb();
+      } else {
+        return cb();
+      }
     }
 
     // length > 1
@@ -74,15 +79,16 @@ class Transform extends Node_Transform {
     return cb();
   }
 
-  _flush (cb) {
+  async _flush (cb) {
     try {
       this.push(
         this.process(this[kSource].concat(this.decoder.decode()), true)
       );
+      await this.channel.final();
     } catch (err) {
       return cb(err);
     }
-    
+
     return cb();
   }
 }
