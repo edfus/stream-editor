@@ -1036,7 +1036,11 @@ describe("Edit streams", () => {
         }),
         {
           name: "Error",
-          message: "stream-editor: a stream destination has been ended prematurely."
+          message: (
+            parseInt(process.version.replace(/^v/, "")) < 14
+            ? "Premature close"
+            : "stream-editor: a stream destination has been ended prematurely."
+          )
         }
       );
     });
@@ -1063,7 +1067,11 @@ describe("Edit streams", () => {
         }),
         {
           name: "Error",
-          message: "stream-editor: a stream destination has been destroyed brutely."
+          message: (
+            parseInt(process.version.replace(/^v/, "")) < 14
+            ? "Premature close"
+            : "stream-editor: a stream destination has been destroyed brutely."
+          )
         }
       );
     });
