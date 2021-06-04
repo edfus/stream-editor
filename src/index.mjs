@@ -80,6 +80,8 @@ function getProcessOptions(options) {
       search: search,
       replacement: options.replacement,
       limit: options.limit,      // being a local limit
+      required: options.required,
+      minTimes: options.minTimes,
       maxTimes: options.maxTimes,
       isFullReplacement: options.isFullReplacement,
       disablePlaceholders: options.disablePlaceholders
@@ -134,13 +136,26 @@ function getProcessOptions(options) {
     };
   }
 
-  const defaultOptions = options.defaultOptions;
+  const defaultOptions = options.defaultOptions || {};
 
-  if (!validate(defaultOptions, Object)) {
+  if (typeof defaultOptions !== "object") {
     throw new TypeError([
       "stream-editor: in replaceOptions:",
       `defaultOptions '${defaultOptions}' should be an object.`
     ].join(" "));
+  }
+
+  const beforeCompletionTasks = [];
+
+  if (options.beforeCompletion) {
+    if(typeof options.beforeCompletion !== "function") {
+      throw new TypeError([
+        "stream-editor: in replaceOptions:",
+        `beforeCompletion '${options.beforeCompletion}' should be a function.`
+      ].join(" "));
+    } else {
+      beforeCompletionTasks.push(options.beforeCompletion);
+    }
   }
 
   const channel = {
@@ -151,9 +166,13 @@ function getProcessOptions(options) {
   const replaceSet = new Set(
     replace.map(replaceActions => {
       let { match, search, replacement } = replaceActions;
-      let { isFullReplacement, limit, maxTimes, disablePlaceholders } = findWithDefault(
+      let {
+         isFullReplacement, limit, maxTimes,
+         required, minTimes, disablePlaceholders 
+        } = findWithDefault(
         replaceActions, defaultOptions,
-        "isFullReplacement", "limit", "maxTimes", "disablePlaceholders"
+        "isFullReplacement", "limit", "maxTimes",
+        "required", "minTimes", "disablePlaceholders"
       );
 
       if (match && !search)
@@ -349,6 +368,31 @@ function getProcessOptions(options) {
         };
       }
 
+      // minTimes/required
+      if (minTimes && validate(minTimes, 1) || required) {
+        if(!minTimes) { // required specified
+          minTimes = 1;
+        }
+
+        let counter = 0;
+        const subtleReplacement = rule.replacement;
+        const patternSource = rule.pattern.source;
+
+        rule.replacement = function () {
+          ++counter;
+          return subtleReplacement.apply(void 0, arguments);
+        };
+
+        beforeCompletionTasks.push(() => {
+          if(counter < minTimes)
+            throw new Error(
+              `stream-editor: expect chunks to match with the /${
+                patternSource
+              }/ pattern at least ${minTimes} times, not ${counter} times in actual fact.`
+            );
+        });
+      }
+
       return rule;
     }) // do not insert a semicolon here
   );
@@ -363,6 +407,10 @@ function getProcessOptions(options) {
         rule.replacement
       );
     });
+
+    if(EOF) {
+      beforeCompletionTasks.forEach(f => f());
+    }
 
     return postProcessing(part, EOF);
   };
@@ -390,16 +438,19 @@ function normalizeOptions(options) {
     search: getOption("search") || getOption("match"),
     replacement: getOption("replacement"),
     limit: getOption("limit"),
+    required: getOption("required"),
+    minTimes: getOption("minTimes"),
     maxTimes: getOption("maxTimes"),
     isFullReplacement: getOption("isFullReplacement"),
     disablePlaceholders: getOption("disablePlaceholders"),
 
-    defaultOptions: getOption("defaultOptions") || {},
+    defaultOptions: getOption("defaultOptions"),
 
     replace: getOption("replace"),
 
-    join: getOption("join"),
-    postProcessing: getOption("postProcessing")
+    join: getOption("join"), 
+    postProcessing: getOption("postProcessing"),
+    beforeCompletion: getOption("beforeCompletion")
   };
 
   const transformOptions = addProcessOptions({

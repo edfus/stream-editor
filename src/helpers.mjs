@@ -38,6 +38,12 @@ export async function verbose(err, parsedOptions, orinOptions) {
 }
 
 export function warn(warning) {
+  const packagePrefix = "stream-editor: ";
+  
+  if(!warning.startsWith(packagePrefix)) {
+    warning = packagePrefix.concat(warning);
+  }
+
   if (checkIsColorEnabled(process.stdout)) {
     console.warn(`\x1b[33m${warning}\x1b[0m`);
   } else {

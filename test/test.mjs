@@ -23,7 +23,15 @@ describe("Edit streams", () => {
   ];
 
   it("should check arguments", async () => {
-    await assert.rejects(
+    rejects(
+      () => streamEdit("Teehee"),
+      {
+        name: "TypeError",
+        message: "stream-editor: non-object 'Teehee' is passed as the options."
+      }
+    );
+
+    rejects(
       () => streamEdit({
         file: "",
         search: /(.|\n)*/,
@@ -36,7 +44,7 @@ describe("Edit streams", () => {
       }
     );
 
-    await assert.rejects(
+    rejects(
       () => streamEdit({
         from: [],
         to: {},
@@ -49,7 +57,7 @@ describe("Edit streams", () => {
       }
     );
 
-    await assert.rejects(
+    rejects(
       () => streamEdit({
         file: "./",
         match: /(.|\n)*/,
@@ -59,7 +67,7 @@ describe("Edit streams", () => {
       /EISDIR: illegal operation on a directory/
     );
 
-    await assert.rejects(
+    rejects(
       () => streamEdit({
         file: "./",
         replace: [
@@ -85,7 +93,7 @@ describe("Edit streams", () => {
       }
     );
 
-    await assert.rejects(
+    rejects(
       () => streamEdit({
         file: "./",
         readStart: -1,
@@ -99,7 +107,7 @@ describe("Edit streams", () => {
       }
     );
 
-    await assert.rejects(
+    rejects(
       () => streamEdit({
         file: "./",
         readStart: -1,
@@ -113,7 +121,7 @@ describe("Edit streams", () => {
       }
     );
 
-    await assert.rejects(
+    rejects(
       () => streamEdit({
         file: "./",
         replace: [
@@ -128,7 +136,7 @@ describe("Edit streams", () => {
       }
     );
 
-    await assert.rejects(
+    rejects(
       () => streamEdit({
         file: "./",
         replace: [
@@ -143,7 +151,7 @@ describe("Edit streams", () => {
       }
     );
 
-    await assert.rejects(
+    rejects(
       () => streamEdit({
         file: "./",
         postProcessing: ""
@@ -154,7 +162,7 @@ describe("Edit streams", () => {
       }
     );
 
-    await assert.rejects(
+    rejects(
       () => streamEdit({
         from: {},
         to: ""
@@ -165,7 +173,7 @@ describe("Edit streams", () => {
       }
     );
 
-    await assert.rejects(
+    rejects(
       () => streamEdit({
         readableStreams: [new Readable(), "", Symbol("fdab")],
         to: new Writable()
@@ -176,7 +184,7 @@ describe("Edit streams", () => {
       }
     );
 
-    await assert.rejects(
+    rejects(
       () => streamEdit({
         readableStream: new Readable(),
         to: [new Readable()]
@@ -187,7 +195,7 @@ describe("Edit streams", () => {
       }
     );
 
-    await assert.rejects(
+    rejects(
       () => streamEdit({
         files: [{}],
       }),
@@ -197,7 +205,7 @@ describe("Edit streams", () => {
       }
     );
 
-    await assert.rejects(
+    rejects(
       () => streamEdit({
         from: {},
         to: {}
@@ -208,7 +216,7 @@ describe("Edit streams", () => {
       }
     );
 
-    await assert.rejects(
+    rejects(
       () => streamEdit({
         defaultOptions: "a"
       }),
@@ -217,6 +225,18 @@ describe("Edit streams", () => {
         message: `stream-editor: in replaceOptions: defaultOptions 'a' should be an object.`
       }
     );
+
+    rejects(
+      () => streamEdit({
+        beforeCompletion: "a"
+      }),
+      {
+        name: "TypeError",
+        message: `stream-editor: in replaceOptions: beforeCompletion 'a' should be a function.`
+      }
+    );
+
+    await allDone();
   });
 
   it("should warn unknown/unneeded options", async () => {
@@ -325,7 +345,8 @@ describe("Edit streams", () => {
       separator: /,(?=\n)/i,
       search: /(.+?)(dumpling)/i,
       replacement: "$2 ",
-      isFullReplacement: true
+      isFullReplacement: true,
+      join: null
     });
   });
 
@@ -471,6 +492,67 @@ describe("Edit streams", () => {
     );
   });
 
+  it("can signal an unsuccessful substitution using beforeCompletion", async () => {
+    let counter = 0;
+    await assert.rejects(
+      () => streamEdit({
+        from: new Readable({
+          highWaterMark: 20,
+          read(size) {
+            this.push(String(counter++));
+            if (counter === 15) {
+              return this.push(null);
+            }
+          }
+        }),
+        to: new Writable({
+          write(chunk, enc, cb) {
+            return cb();
+          }
+        }),
+        separator: null,
+        beforeCompletion() {
+          throw new Error("Blue Regret");
+        }
+      }),
+      {
+        name: "Error",
+        message: "Blue Regret"
+      }
+    );
+  });
+
+  it("can declare a limit below which a substitution is considered failed for a search ", async () => {
+    let counter = 0;
+    await assert.rejects(
+      () => streamEdit({
+        from: new Readable({
+          highWaterMark: 20,
+          read(size) {
+            this.push(String(counter++));
+            if (counter === 15) {
+              return this.push(null);
+            }
+          }
+        }),
+        to: new Writable({
+          write(chunk, enc, cb) {
+            return cb();
+          }
+        }),
+        search: /@/,
+        replacement: "",
+        required: true,
+        minTimes: 3,
+        separator: null
+      }),
+      {
+        name: "Error",
+        message: "stream-editor: expect chunks to match with the /@/ pattern at least 3 times, not 0 times in actual fact."
+      }
+    );
+  });
+
   describe("truncation & limitation", () => {
     it("truncating the rest when limitations reached", async () => {
       const filepath = join(__dirname, `./dump${dump$[1]}`);
@@ -563,6 +645,7 @@ describe("Edit streams", () => {
         search: /.+/,
         replacement: () => "",
         limit: 9,
+        required: true,
         truncate: false
       });
 
@@ -1119,7 +1202,7 @@ describe("Edit streams", () => {
   });
 
   describe("try-on", () => {
-    it("can handle files larger than 16KiB", async () => {
+    it("can handle files larger than 64KiB", async () => {
       const processFiles = (
         (await import("../examples/helpers/process-files.mjs")).processFiles
       );
@@ -1174,3 +1257,13 @@ describe("Edit streams", () => {
   });
 });
 
+let stash = [];
+function rejects(...argv) {
+  return stash.push(assert.rejects(...argv));
+}
+
+async function allDone () {
+  const promise = Promise.all(stash);
+  stash = [];
+  return promise;
+}
