@@ -1,6 +1,6 @@
 {
   "name": "stream-editor",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "description": "Utility for executing RegEx replacement on streams as well as transcoding/teeing/confluencing them.",
   "scripts": {
     "example": "node examples/update-sw-content.mjs",
@@ -14,6 +14,8 @@
   "files": [
     "README.md",
     "package.json",
+    "build/helpers.js",
+    "build/helpers.mjs",
     "build/index.d.ts",
     "build/index.js",
     "build/index.mjs",

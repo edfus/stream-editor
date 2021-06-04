@@ -38,6 +38,15 @@ interface BasicInfrequentReplaceOption {
    * Default: Infinity. 0 is considered as Infinity for this option.
    */
   maxTimes?: number;
+  /**
+   * For the search you specified, add a limit below which the substitution
+   * is considered failed.
+   */
+  minTimes?: number;
+  /**
+   * Sugar for minTimes = 1
+   */
+  required?: boolean;
 }
 
 interface BasicReplaceOption extends BasicInfrequentReplaceOption {
@@ -214,6 +223,15 @@ interface BasicOptions extends ReplaceOptions {
    * streams can be returned.
    */
   postProcessing: (part: string, isLastPart: boolean) => any
+  /**
+   * This optional function will be called before the destination(s) close,
+   * delaying the resolution of the promise returned by streamEdit() until
+   * beforeCompletion resolves.
+   * 
+   * You can also return a rejected promise or simply raise an error to signal a
+   * failure and destroy all streams.
+   */
+  beforeCompletion: () => Promise<void> | void
 }
 
 type WritableOrVoid = Writable | void;

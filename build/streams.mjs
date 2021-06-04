@@ -2,30 +2,30 @@ import { pipeline } from "stream";
 import rw from "./rw-stream/index.mjs";
 import { Transform, NukableTransform } from "./transform.mjs";
 
-async function process_stream (
+async function processStreaming (
   readableStream,
   writableStream,
   options
 ) {
 
-  const { processFunc, truncate } = options;
+  const { channel, truncate } = options;
 
   let transformStream;
 
   try {
-    if (processFunc.withLimit) {
+    if (channel.withLimit) {
       transformStream = new NukableTransform({
           ...options,
-          withFalloutShelter: !truncate,
+          withFalloutShelter: !truncate
       });
   
       let limitReached = false;
-      processFunc._cb_limit = () => {
+      channel._notifyLimitReached = () => {
         if (limitReached) {
           return Symbol.for("notified");
         } else {
           limitReached = true;
-          transformStream.detonateTheBombNow = true
+          transformStream.detonateTheBombNow = true;
           // starting from v14.0.0, The pipeline will wait for the 'close' event
           // for non-duplex & non-legacy streams created with the emitClose option.
           // so marking the end of the readableStream manually is required.
@@ -56,7 +56,7 @@ async function process_stream (
 }
 
 
-async function rw_stream(filepath, options) {
+async function rwStreaming(filepath, options) {
   const { readableStream, writableStream } = await rw(
     filepath,
     {
@@ -65,8 +65,8 @@ async function rw_stream(filepath, options) {
     }
   );
 
-  return process_stream(readableStream, writableStream, options)
+  return processStreaming(readableStream, writableStream, options)
             .then(() => void 0); // not leaking the reference to local writableStream
 }
 
-export { rw_stream, process_stream };
+export { rwStreaming, processStreaming };

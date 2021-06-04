@@ -1,5 +1,7 @@
-import { process_stream, rw_stream } from "./streams.mjs";
 import { PassThrough, Readable, Writable } from "stream";
+
+import { processStreaming, rwStreaming } from "./streams.mjs";
+import { verbose, warn, Options, findWithDefault, is, validate } from "./helpers.mjs";
 
 let escapeRegEx; // lazy load
 const captureGroupPlaceholdersPattern = /(?<!\\)\$([1-9]{1,3}|\&|\`|\')/;
@@ -8,16 +10,6 @@ const captureGroupPlaceholdersPatternGlobal = new RegExp(captureGroupPlaceholder
 // is () and not \( \) nor (?<=x) (?<!x) (?=x) (?!x)
 // (?!\?) alone is enough, as /(?/ is an invalid RegExp
 const splitToPCGroupsPattern = /(.*?)(?<!\\)\((?!\?)(.*)(?<!\\)\)(.*)/;
-
-const checkIsColorEnabled = (
-  tty =>
-    "FORCE_COLOR" in process.env
-    ? [1, 2, 3, "", true, "1", "2", "3", "true"].includes(process.env.FORCE_COLOR)
-    : !(
-      "NO_COLOR" in process.env ||
-      process.env.NODE_DISABLE_COLORS == 1 // using == by design
-    ) && tty.isTTY
-);
 
 function substituteCaptureGroupPlaceholders(target, $and, ...rest) {
   let i = 0;
@@ -75,8 +67,7 @@ function substituteCaptureGroupPlaceholders(target, $and, ...rest) {
   ).replace(/\$\$/g, "$");
 }
 
-function getReplaceFunc(options) {
-  //TODO line
+function getProcessOptions(options) {
   let replace = [];
 
   let globalLimit = 0;
@@ -89,6 +80,8 @@ function getReplaceFunc(options) {
       search: search,
       replacement: options.replacement,
       limit: options.limit,      // being a local limit
+      required: options.required,
+      minTimes: options.minTimes,
       maxTimes: options.maxTimes,
       isFullReplacement: options.isFullReplacement,
       disablePlaceholders: options.disablePlaceholders
@@ -143,36 +136,48 @@ function getReplaceFunc(options) {
     };
   }
 
-  let replaceSet;
-  const callback = (part, EOF) => {
-    if (typeof part !== "string")
-      return ""; // For cases like "Adbfdbdafb".split(/(?=([^,\n]+(,\n)?|(,\n)))/)
+  const defaultOptions = options.defaultOptions || {};
 
-    replaceSet.forEach(rule => {
-      part = part.replace(
-        rule.pattern,
-        rule.replacement
-      );
-    });
-
-    return postProcessing(part, EOF);
-  };
-
-  const defaultOptions = options.defaultOptions;
-
-  if (!validate(defaultOptions, Object)) {
+  if (typeof defaultOptions !== "object") {
     throw new TypeError([
       "stream-editor: in replaceOptions:",
       `defaultOptions '${defaultOptions}' should be an object.`
     ].join(" "));
   }
 
-  replaceSet = new Set(
+  const beforeCompletionTasks = [];
+
+  if (options.beforeCompletion) {
+    if(typeof options.beforeCompletion !== "function") {
+      throw new TypeError([
+        "stream-editor: in replaceOptions:",
+        `beforeCompletion '${options.beforeCompletion}' should be a function.`
+      ].join(" "));
+    } else {
+      beforeCompletionTasks.push(options.beforeCompletion);
+    }
+  }
+
+  const channel = {
+    final: async () => {
+      for (const task of beforeCompletionTasks) {
+        await task();
+      }
+    },
+    withLimit: false,
+    _notifyLimitReached: void 0
+  };
+
+  const replaceSet = new Set(
     replace.map(replaceActions => {
       let { match, search, replacement } = replaceActions;
-      let { isFullReplacement, limit, maxTimes, disablePlaceholders } = findWithDefault(
+      let {
+         isFullReplacement, limit, maxTimes,
+         required, minTimes, disablePlaceholders 
+        } = findWithDefault(
         replaceActions, defaultOptions,
-        "isFullReplacement", "limit", "maxTimes", "disablePlaceholders"
+        "isFullReplacement", "limit", "maxTimes",
+        "required", "minTimes", "disablePlaceholders"
       );
 
       if (match && !search)
@@ -325,7 +330,7 @@ function getReplaceFunc(options) {
       // limit
       if (limit && validate(limit, 1) || globalLimit) {
         let counter = 0;
-        const funcPtr = rule.replacement;
+        const subtleReplacement = rule.replacement;
 
         rule.replacement = function (notify, ...args) {
           if (
@@ -333,27 +338,26 @@ function getReplaceFunc(options) {
             || ++counter >= limit
           )
             /**
-             * when ===, notify() but still perform a replacement.
-             * when >  , return the whole unmodified match string.
+             * when ===, notify() but a replacement is still performed.
+             * when >  , just return the whole unmodified match string.
              */
             if (notify() === Symbol.for("notified"))
               return args[0];
 
-          return funcPtr.apply(this, args);
-        }.bind(rule, () => callback._cb_limit());
+          return subtleReplacement.apply(this, args);
+        }.bind(void 0, () => channel._notifyLimitReached());
 
-        callback.withLimit = true;
-        callback.truncate = options.truncate;
+        channel.withLimit = true;
       }
 
       // max times executed
       if (maxTimes && validate(maxTimes, 1)) {
         let counter = 0;
-        const funcPtr = rule.replacement;
+        const subtleReplacement = rule.replacement;
 
         rule.replacement = function () {
           /**
-           * when ===, delete itself but still perform a replacement.
+           * when ===, do the substitution and mark this rule as EOL.
            * when >  , return the whole unmodified match string.
            * 
            * This is necessary as there might be multiple rounds of 
@@ -365,56 +369,68 @@ function getReplaceFunc(options) {
             replaceSet.delete(rule);
           }
 
-          return funcPtr.apply(this, arguments);
+          return subtleReplacement.apply(void 0, arguments);
         };
       }
 
+      // minTimes/required
+      if (minTimes && validate(minTimes, 1) || required) {
+        if(!minTimes) { // required specified
+          minTimes = 1;
+        }
+
+        let counter = 0;
+        const subtleReplacement = rule.replacement;
+        const patternSource = rule.pattern.source;
+
+        rule.replacement = function () {
+          ++counter;
+          return subtleReplacement.apply(void 0, arguments);
+        };
+
+        beforeCompletionTasks.push(() => {
+          if(counter < minTimes)
+            throw new Error(
+              `stream-editor: expect chunks to match with the /${
+                patternSource
+              }/ pattern at least ${minTimes} times, not ${counter} times in actual fact.`
+            );
+        });
+      }
+
       return rule;
-    })
+    }) // do not insert a semicolon here
   );
 
-  return callback;
+  const processFunc = (part, EOF) => {
+    if (typeof part !== "string")
+      return ""; // For cases like "Adbfdbdafb".split(/(?=([^,\n]+(,\n)?|(,\n)))/)
+
+    replaceSet.forEach(rule => {
+      part = part.replace(
+        rule.pattern,
+        rule.replacement
+      );
+    });
+
+    return postProcessing(part, EOF);
+  };
+
+  return { channel, processFunc };
+}
+
+function addProcessOptions(assignee, ...argv) {
+  const options = getProcessOptions(...argv);
+  return Object.assign(assignee, options);
+}
+
+function updateProcessOptions() {
+  return addProcessOptions.apply(this, arguments);
 }
 
 /**
  * handle input
  */
-
-class Options {
-  constructor(options) {
-    this.options = Object.assign({}, options);
-    this.got = Symbol("got");
-  }
-
-  _has(name) {
-    return name in this.options;
-  }
-
-  _get(name) {
-    const result = this.options[name];
-    if (name in this.options)
-      this.options[name] = this.got;
-    return result;
-  }
-
-  _warnUnknown() {
-    const unknownOptions = [];
-    for (const prop of Object.keys(this.options)) {
-      if (this.options[prop] !== this.got) {
-        unknownOptions.push(prop);
-      }
-    }
-    if (unknownOptions.length) {
-      warn(
-        `stream-editor: Received unknown/unneeded options: ${unknownOptions.join(', ')}.`
-      );
-    }
-  }
-
-  has = name => this._has(name);
-  get = name => this._get(name);
-  warnUnknown = () => this._warnUnknown();
-}
 
 function normalizeOptions(options) {
   const { has: hasOption, get: getOption, warnUnknown } = new Options(options);
@@ -423,19 +439,22 @@ function normalizeOptions(options) {
     search: getOption("search") || getOption("match"),
     replacement: getOption("replacement"),
     limit: getOption("limit"),
+    required: getOption("required"),
+    minTimes: getOption("minTimes"),
     maxTimes: getOption("maxTimes"),
     isFullReplacement: getOption("isFullReplacement"),
     disablePlaceholders: getOption("disablePlaceholders"),
 
-    defaultOptions: getOption("defaultOptions") || {},
+    defaultOptions: getOption("defaultOptions"),
 
     replace: getOption("replace"),
 
-    join: getOption("join"),
-    postProcessing: getOption("postProcessing")
+    join: getOption("join"), 
+    postProcessing: getOption("postProcessing"),
+    beforeCompletion: getOption("beforeCompletion")
   };
 
-  const transformOptions = {
+  const transformOptions = addProcessOptions({
     separator: hasOption("separator") ? getOption("separator") : /(?<=\r?\n)/,
     encoding: getOption("encoding") || null,
     decodeBuffers: getOption("decodeBuffers") || "utf8",
@@ -445,10 +464,8 @@ function normalizeOptions(options) {
     writeStart: getOption("writeStart") || 0,
     readableObjectMode: Boolean(getOption("readableObjectMode")),
 
-    processFunc: getReplaceFunc(replaceOptions),
-
     contentJoin: getOption("contentJoin") || ""
-  };
+  }, replaceOptions);
 
   const from = getOption("from");
   const to = getOption("to");
@@ -486,41 +503,6 @@ function normalizeOptions(options) {
   };
 }
 
-/**
- * format output
- */
-
-let inspect;
-async function verbose(err, parsedOptions, orinOptions) {
-  if (!inspect)
-    inspect = (await import("util")).inspect;
-
-  if(typeof parsedOptions !== "object")
-    return err;
-
-  const indent = " ".repeat(2);
-  const depth  = 1;
-  const colors  = checkIsColorEnabled(process.stderr);
-
-  err.message = err.message.concat([
-    "\nParsed options: {",
-    ...Object.entries(parsedOptions).map(([key, value]) => 
-      indent.concat(`${key}: ${inspect(value, { depth, colors }).replace(/\n/g, `\n${indent}`)}`)
-    ),
-    "}\n",
-    `Original options: ${inspect(orinOptions, { depth, colors })}`
-  ].join("\n").replace(/\n/g, `\n${indent}`));
-
-  return err;
-}
-
-function warn (warning) {
-  if(checkIsColorEnabled(process.stdout)) {
-    console.warn(`\x1b[33m${warning}\x1b[0m`);
-  } else {
-    console.warn(warning);
-  }
-}
 
 /**
  * main
@@ -536,7 +518,7 @@ async function streamEdit (options) {
    */
   if (streamOptions.file !== undefined) {
     if (validate(streamOptions.file, ".")) {
-      return rw_stream(
+      return rwStreaming(
         streamOptions.file,
         transformOptions
       );
@@ -553,7 +535,7 @@ async function streamEdit (options) {
     const writableStream = streamOptions.writableStream;
 
     if (validate(readableStream, Readable) && validate(writableStream, Writable)) {
-      return process_stream(
+      return processStreaming(
         readableStream,
         writableStream,
         transformOptions
@@ -574,23 +556,23 @@ async function streamEdit (options) {
       //TODO option for considering files as a single, continuous long stream
       const files = streamOptions.files;
       const promises = [
-        rw_stream(
+        rwStreaming(
           files[0],
           transformOptions
         )
       ];
 
       for (let i = 1; i < files.length; i++) {
-        transformOptions.processFunc = getReplaceFunc(replaceOptions);
+        updateProcessOptions(transformOptions, replaceOptions);
         promises.push(
-          rw_stream(
+          rwStreaming(
             files[i],
             transformOptions
           )
         );
       }
       
-      return Promise.all(promises); //TODO to allSettled
+      return Promise.all(promises);
     } else {
       throw (
         new TypeError(
@@ -616,14 +598,14 @@ async function streamEdit (options) {
       const resultPromises = sources.map(
         (src, i) => {
           const passThrough = new PassThrough();
-          const promise = process_stream(
+          const promise = processStreaming(
             src,
             passThrough,
             transformOptions
           );
 
           if(i < lastIndex)
-            transformOptions.processFunc = getReplaceFunc(replaceOptions);
+            updateProcessOptions(transformOptions, replaceOptions);
 
           resultStreams.push(passThrough);
           return promise;
@@ -631,10 +613,16 @@ async function streamEdit (options) {
       );
 
       return new Promise(async (resolve, reject) => {
+        let rootRejectCalled = false;
+        const rootReject = reason => {
+          rootRejectCalled = true;
+          return reject(reason);
+        };
+
         const destroy = err => {
           resultStreams.forEach(stream => !stream.destroyed && stream.destroy());
           !destination.destroyed && destination.destroy();
-          return reject(err);
+          return rootReject(err);
         };
 
         Promise.all(resultPromises).catch(destroy);
@@ -644,23 +632,46 @@ async function streamEdit (options) {
           await resultStreams.reduce(async (frontWorkDone, resultStream, i) => {
             await frontWorkDone;
             await new Promise((resolve, reject) => {
-              if (resultStream.destroyed) {
-                return i < lastIndex ? resolve() : destination.end(resolve);
+              if(destination.destroyed || destination.writableEnded) {
+                if(destination.writableEnded) {
+                  return reject(
+                    new Error("stream-editor: destination has been ended prematurely.")
+                  );
+                }
+
+                // destroyed
+                if (rootRejectCalled) {
+                  return resolve(); // do nothing
+                } else {
+                  return reject(
+                    new Error("stream-editor: destination has been destroyed brutely.")
+                  );
+                }
+              }
+
+              if (resultStream.destroyed || resultStream.readableEnded) {
+                if (i >= lastIndex) {
+                  return destination.end(resolve);
+                }
+
+                return resolve(); // silently skip
               }
 
               resultStream
                 .once("error", reject)
                 .once("end", () => {
-                  if (i < lastIndex) {
-                    if (destination.destroyed || destination.writableEnded)
-                      return resolve();
+                  if (destination.destroyed || destination.writableEnded)
+                    return reject(
+                      new Error("stream-editor: premature destination close.")
+                    );
 
+                  if (i < lastIndex) {
                     return destination.write(
                       contentJoin, encoding,
                       err => err ? reject(err) : resolve()
                     );
                   } else {
-                    destination.end(resolve);
+                    return destination.end(resolve);
                   }
                 })
                 .pipe(destination, { end: false })
@@ -692,14 +703,10 @@ async function streamEdit (options) {
     const destinations = streamOptions.destinations;
 
     if (validate(source, Readable) && validate(destinations, Array) && validate(...destinations, Writable)) {
+      let errored = false;
       const onError = err => {
+        errored = true;
         return delegate.destroy(err);
-      };
-
-      const checkEnded = () => {
-        if (destinations.every(s => s.destroyed || s.writableEnded)) {
-          return delegate.destroy();
-        }
       };
 
       // source's possible error events will be handled by pipeline
@@ -708,10 +715,20 @@ async function streamEdit (options) {
       const delegate = new Writable({
         async write(chunk, encoding, cb) {
           try {
+            // Calling the .write() method after calling .destroy() will raise an error.
             await Promise.all(
               destinations.map(writableStream => {
-                if (writableStream.destroyed || writableStream.writableEnded)
-                  return checkEnded();
+                if(errored) {
+                  return Promise.resolve(); // do nothing
+                }
+
+                if(writableStream.writableEnded) {
+                  throw new Error("stream-editor: a stream destination has been ended prematurely.");
+                }
+
+                if (writableStream.destroyed) {
+                  throw new Error("stream-editor: a stream destination has been destroyed brutely.");
+                }
 
                 return new Promise((resolve, reject) =>
                   writableStream.write(
@@ -725,6 +742,7 @@ async function streamEdit (options) {
           } catch (err) {
             return cb(err);
           }
+
           return cb();
         },
         destroy(err, cb) {
@@ -738,6 +756,7 @@ async function streamEdit (options) {
           await Promise.all(
             destinations.map(
               writableStream => new Promise((resolve, reject) => {
+                // end can be called multiple times, if additional chunk of data is to be written
                 writableStream.end(() => {
                   writableStream.removeListener("error", onError);
                   return resolve();
@@ -749,7 +768,7 @@ async function streamEdit (options) {
         }
       });
 
-      return process_stream(
+      return processStreaming(
         source,
         delegate,
         transformOptions
@@ -776,38 +795,6 @@ async function streamEdit (options) {
   
   error.code = 'EINVAL';
   throw error;
-}
-
-function is(toValidate, ...types) {
-  return types.some(type => validate(toValidate, type));
-}
-
-function validate(...args) {
-  const should_be = args.splice(args.length - 1, 1)[0];
-
-  if (should_be === Array)
-    return args.every(arg => Array.isArray(arg) && arg.length);
-
-  const type = typeof should_be;
-  switch (type) {
-    case "function": return args.every(arg => arg instanceof should_be);
-    case "object": return args.every(arg => typeof arg === "object" && arg.constructor === should_be.constructor);
-    case "string": return args.every(arg => typeof arg === "string" && arg.length >= should_be.length);
-    case "number": return args.every(arg => typeof arg === "number" && !isNaN(arg) && arg >= should_be); // comparing NaN with other numbers always returns false, though.
-    default: return args.every(arg => typeof arg === type);
-  }
-}
-
-function findWithDefault(options, defaultOptions, ...names) {
-  const result = {};
-  for (const name of names) {
-    if(options[name] !== undefined) {
-      result[name] = options[name];
-    } else {
-      result[name] = defaultOptions[name];
-    }
-  }
-  return result;
 }
 
 export { streamEdit, streamEdit as sed };

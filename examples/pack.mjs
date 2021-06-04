@@ -11,8 +11,8 @@ const destination = join(root_directory, "./build");
 
 const sourcePath = join(root_directory, "./src");
 const sources =     [
-  "./index.mjs", "./streams.mjs", "./transform.mjs", "./rw-stream/index.mjs",
-  "./index.d.ts"
+  "./index.mjs", "./streams.mjs", "./transform.mjs", "./helpers.mjs",
+  "./rw-stream/index.mjs", "./index.d.ts"
 ];
 
 const testPath = join(root_directory, "./test");
@@ -148,6 +148,24 @@ const replacements = {
     {
       search: /export\s*default/,
       replacement: "module.exports =",
+      isFullReplacement: true
+    },
+    // exporting functions as individual features
+    {
+      search: /export\s+(async\s+)?function(\s+|\s*\*\s*)([^(\s{]+)/,
+      replacement: (_, isAsync = "", isGenerator = "", functionName) => {
+        return  `module.exports.${functionName} = ${functionName};\r\n${
+          isAsync
+        }function${isGenerator}${functionName}`;
+      },
+      isFullReplacement: true
+    },
+    // exporting class as individual features
+    {
+      search: /export\s+class\s+([^\s{]+)/,
+      replacement: (_, className) => {
+        return  `module.exports.${className} = class ${className}`;
+      },
       isFullReplacement: true
     }
   ]
