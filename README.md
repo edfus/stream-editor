@@ -8,6 +8,7 @@
 
 * [Features](#features)
     * [Partial replacement](#partial-replacement)
+    * [Asynchronous replacement](#asynchronous-replacement)
     * [Substituting texts within files in streaming fashion](#substituting-texts-within-files-in-streaming-fashion)
     * [Setting limits on Regular Expressions' maximum executed times](#setting-limits-on-regular-expressions-maximum-executed-times)
     * [Transcoding streams or files](#transcoding-streams-or-files)
@@ -277,7 +278,7 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
     √ should check arguments
     √ should warn unknown/unneeded options
     √ should respect FORCE_COLOR, NO_COLOR, NODE_DISABLE_COLORS
-    √ should pipe one Readable to multiple dumps (52ms)
+    √ should pipe one Readable to multiple dumps (54ms)
     √ should replace CRLF with LF
     √ should have replaced /dum(b)/i to dumpling (while preserving dum's case)
     √ should have global and local limits on replacement amount
@@ -288,6 +289,7 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
     √ can signal an unsuccessful substitution using beforeCompletion
     √ can declare a limit below which a substitution is considered failed for a search
     cancelation
+      √ should check validity
       √ can abort a substitution before it has completed.
       √ can handle already aborted controller
       √ doesn't have memory leaks (is using WeakRef)
@@ -320,7 +322,7 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
       √ can handle files larger than 64KiB
 
 
-  48 passing (296ms)
+  49 passing (275ms)
 
 ```
 
