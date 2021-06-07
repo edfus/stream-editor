@@ -236,32 +236,6 @@ describe("Edit streams", () => {
       }
     );
 
-    const _AbortController = globalThis.AbortController;
-    globalThis.AbortController = null;
-    await assert.rejects(
-      () => streamEdit({
-        from: new Readable(),
-        to: new Writable(),
-        abortController: {}
-      }),
-      {
-        name: "Error",
-        message: `stream-editor: incompatible node.js version for transformOptions.abortController`
-      }
-    ).finally(() => globalThis.AbortController = _AbortController);
-
-    await assert.rejects(
-      () => streamEdit({
-        from: new Readable(),
-        to: new Writable(),
-        abortController: {}
-      }),
-      {
-        name: "TypeError",
-        message: `stream-editor: expected transformOptions.abortController '[object Object]'to be an instance of globalThis.AbortController`
-      }
-    );
-
     await allDone();
   });
 
@@ -631,6 +605,34 @@ describe("Edit streams", () => {
         console.info('\x1b[36m%s\x1b[0m', "    # this is only available for Node versions that support AbortController (>= 15.0.0)");
         return this.skip();
       }
+    });
+
+    it("should check validity", async () => {
+      const _AbortController = globalThis.AbortController;
+      globalThis.AbortController = null;
+      await assert.rejects(
+        () => streamEdit({
+          from: new Readable(),
+          to: new Writable(),
+          abortController: {}
+        }),
+        {
+          name: "Error",
+          message: `stream-editor: incompatible node.js version for transformOptions.abortController`
+        }
+      ).finally(() => globalThis.AbortController = _AbortController);
+
+      await assert.rejects(
+        () => streamEdit({
+          from: new Readable(),
+          to: new Writable(),
+          abortController: {}
+        }),
+        {
+          name: "TypeError",
+          message: `stream-editor: expected transformOptions.abortController '[object Object]'to be an instance of globalThis.AbortController`
+        }
+      );
     });
 
     it("can abort a substitution before it has completed.", async () => {
