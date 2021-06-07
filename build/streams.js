@@ -9,7 +9,7 @@ async function processStreaming (
   options
 ) {
 
-  const { channel, truncate } = options;
+  const { channel, truncate, abortController } = options;
 
   let transformStream;
 
@@ -37,6 +37,42 @@ async function processStreaming (
     } else {
       transformStream = new Transform(options);
     }
+
+    if(abortController) {
+      if(!globalThis.AbortController) {
+        throw new Error(
+          `stream-editor: incompatible node.js version for transformOptions.abortController`
+        );
+      }
+
+      if(abortController instanceof globalThis.AbortController) {
+        if(abortController.signal.aborted) {
+          throw new class AbortError extends Error {}("The operation was aborted.");
+        }
+
+        const transformStreamRef = new WeakRef(transformStream);
+        const abort = () => {
+          const err = new class AbortError extends Error {}("The operation was aborted.");
+          const transform = transformStreamRef.deref();
+          if(transform) {
+            if(typeof transform.destroy === "function") {
+              if(!transform.destroyed) {
+                transform.destroy(err);
+              }
+            }
+          }
+        }
+
+        abortController.signal.addEventListener(
+          'abort', abort, { once: true }
+        );
+      } else {
+        throw new TypeError(
+          `stream-editor: expected transformOptions.abortController '${abortController}'`
+          + `to be an instance of globalThis.AbortController`
+        );
+      }
+    }
   } catch (err) {
     readableStream.destroy();
     transformStream
@@ -55,7 +91,6 @@ async function processStreaming (
     );
   });
 }
-
 
 async function rwStreaming(filepath, options) {
   const { readableStream, writableStream } = await rw(

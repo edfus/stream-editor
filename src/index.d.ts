@@ -217,22 +217,30 @@ interface BasicOptions extends ReplaceOptions {
    */
   readableObjectMode?: boolean;
   /**
+   * An optional controller object that allows you to abort one or more
+   * substitutions as and when desired.
+   * 
+   * Node version >= 15.0.0 is required.
+   */
+  abortController?: AbortController;
+
+  /**
    * A post-processing function that consumes transformed strings and returns a
    * string or a Buffer. This option has higher priority over option `join`.
    * 
    * If readableObjectMode is enabled, any object accepted by Node.js objectMode
    * streams can be returned.
    */
-  postProcessing: (part: string, isLastPart: boolean) => any
+  postProcessing?: (part: string, isLastPart: boolean) => any;
   /**
-   * This optional function will be called before the destination(s) close,
-   * delaying the resolution of the promise returned by streamEdit() until
-   * beforeCompletion resolves.
-   * 
-   * You can also return a rejected promise or simply raise an error to signal a
-   * failure and destroy all streams.
-   */
-  beforeCompletion: () => Promise<void> | void
+  * This optional function will be called before the destination(s) close,
+  * delaying the resolution of the promise returned by streamEdit() until
+  * beforeCompletion resolves.
+  * 
+  * You can also return a rejected promise or simply raise an error to signal a
+  * failure and destroy all streams.
+  */
+  beforeCompletion?: () => Promise<void> | void;
 }
 
 type WritableOrVoid = Writable | void;

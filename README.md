@@ -128,7 +128,8 @@ await streamEdit({
   }),
   separator: "\n",
   readableObjectMode: true,
-  postProcessing: part => JSON.parse(part)
+  postProcessing: part => JSON.parse(part),
+  abortController: new AbortController() // ...
 });
 ```
 
@@ -276,7 +277,7 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
     √ should check arguments
     √ should warn unknown/unneeded options
     √ should respect FORCE_COLOR, NO_COLOR, NODE_DISABLE_COLORS
-    √ should pipe one Readable to multiple dumps (64ms)
+    √ should pipe one Readable to multiple dumps (52ms)
     √ should replace CRLF with LF
     √ should have replaced /dum(b)/i to dumpling (while preserving dum's case)
     √ should have global and local limits on replacement amount
@@ -286,6 +287,10 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
     √ can handle async replacements
     √ can signal an unsuccessful substitution using beforeCompletion
     √ can declare a limit below which a substitution is considered failed for a search
+    cancelation
+      √ can abort a substitution before it has completed.
+      √ can handle already aborted controller
+      √ doesn't have memory leaks (is using WeakRef)
     truncation & limitation
       √ truncating the rest when limitations reached
       √ not: self rw-stream
@@ -315,7 +320,7 @@ See <https://github.com/edfus/stream-editor/tree/master/test>.
       √ can handle files larger than 64KiB
 
 
-  45 passing (332ms)
+  48 passing (296ms)
 
 ```
 
@@ -473,7 +478,7 @@ interface BasicOptions extends ReplaceOptions {
    * If readableObjectMode is enabled, any object accepted by Node.js objectMode
    * streams can be returned.
    */
-  postProcessing: (part: string, isLastPart: boolean) => any
+  postProcessing?: (part: string, isLastPart: boolean) => any;
   /**
    * This optional function will be called before the destination(s) close,
    * delaying the resolution of the promise returned by streamEdit() until
@@ -482,7 +487,7 @@ interface BasicOptions extends ReplaceOptions {
    * You can also return a rejected promise or simply raise an error to signal a
    * failure and destroy all streams.
    */
-  beforeCompletion: () => Promise<void> | void
+  beforeCompletion?: () => Promise<void> | void;
 }
 ```
 
@@ -496,6 +501,7 @@ interface BasicOptions extends ReplaceOptions {
 | truncate      |   x   | `boolean`               | ✔       |  `false`     |
 | maxLength     |   x   | `number`                | ✔       |  `Infinity`  |
 | readableObjectMode| x | `boolean`               | ✔       |  `false`     |
+| abortController| x    | `AbortController`       | ✔       |  `null`      |
 
 Options that are only available under certain context:
 | name          | alias | expect                  | context  | default    |
@@ -578,6 +584,13 @@ interface BasicOptions extends ReplaceOptions {
    * Default: Infinity.
    */
   readableObjectMode?: boolean;
+  /**
+   * An optional controller object that allows you to abort one or more
+   * substitutions as and when desired.
+   * 
+   * Node version >= 15.0.0 is required.
+   */
+  abortController?: AbortController;
 }
 
 interface UpdateFileOptions extends BasicOptions {

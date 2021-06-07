@@ -503,7 +503,9 @@ function normalizeOptions(options) {
     writeStart: getOption("writeStart") || 0,
     readableObjectMode: Boolean(getOption("readableObjectMode")),
 
-    contentJoin: getOption("contentJoin") || ""
+    contentJoin: getOption("contentJoin") || "",
+
+    abortController: getOption("abortController") || null
   }, replaceOptions);
 
   const from = getOption("from");

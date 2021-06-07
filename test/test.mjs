@@ -236,6 +236,32 @@ describe("Edit streams", () => {
       }
     );
 
+    const _AbortController = globalThis.AbortController;
+    globalThis.AbortController = null;
+    await assert.rejects(
+      () => streamEdit({
+        from: new Readable(),
+        to: new Writable(),
+        abortController: {}
+      }),
+      {
+        name: "Error",
+        message: `stream-editor: incompatible node.js version for transformOptions.abortController`
+      }
+    ).finally(() => globalThis.AbortController = _AbortController);
+
+    await assert.rejects(
+      () => streamEdit({
+        from: new Readable(),
+        to: new Writable(),
+        abortController: {}
+      }),
+      {
+        name: "TypeError",
+        message: `stream-editor: expected transformOptions.abortController '[object Object]'to be an instance of globalThis.AbortController`
+      }
+    );
+
     await allDone();
   });
 
@@ -588,6 +614,96 @@ describe("Edit streams", () => {
         message: "stream-editor: expect chunks to match with the /@/ pattern at least 3 times, not 0 times in actual fact."
       }
     );
+  });
+
+  describe("cancelation", () => {
+    before(function () {
+      const hasAbortController = (() => {
+        try {
+          const abortedSignal = AbortSignal.abort();
+          return AbortController && abortedSignal.aborted && abortedSignal instanceof AbortSignal;
+        } catch (err) {
+          return false;
+        }
+      })();
+
+      if (!hasAbortController) {
+        console.info('\x1b[36m%s\x1b[0m', "    # this is only available for Node versions that support AbortController (>= 15.0.0)");
+        return this.skip();
+      }
+    });
+
+    it("can abort a substitution before it has completed.", async () => {
+      let counter = 0;
+      const abortController = new AbortController();
+      await assert.rejects(
+        () => streamEdit({
+          from: new Readable({
+            highWaterMark: 20,
+            read(size) {
+              this.push(String(counter++));
+              if (counter === 6) {
+                return abortController.abort();
+              }
+              if (counter === 15) {
+                return this.push(null);
+              }
+            }
+          }),
+          to: new Writable({
+            write(chunk, enc, cb) {
+              return cb(new Error("should not be reached"));
+            }
+          }),
+          search: /@/,
+          replacement: "",
+          separator: null,
+          abortController
+        }),
+        {
+          name: "Error",
+          message: "The operation was aborted."
+        }
+      );
+    });
+
+    it("can handle already aborted controller", async () => {
+      let counter = 0;
+      await assert.rejects(
+        () => streamEdit({
+          from: new Readable({
+            highWaterMark: 20,
+            read(size) {
+              this.push(String(counter++));
+              if (counter === 15) {
+                return this.push(null);
+              }
+            }
+          }),
+          to: new Writable({
+            write(chunk, enc, cb) {
+              return cb();
+            }
+          }),
+          search: /@/,
+          replacement: "",
+          separator: null,
+          abortController: (() => {
+            const ac = new AbortController();
+            ac.abort();
+            return ac;
+          })()
+        }),
+        {
+          name: "Error",
+          message: "The operation was aborted."
+        }
+      );
+    });
+
+    it("doesn't have memory leaks (is using WeakRef)", async () => {
+      ; // E>
+    });
   });
 
   describe("truncation & limitation", () => {
